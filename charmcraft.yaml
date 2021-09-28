@@ -1,0 +1,17 @@
+type: "charm"
+bases:
+  - build-on:
+    - name: "ubuntu"
+      channel: "20.04"
+    run-on:
+    - name: "ubuntu"
+      channel: "20.04"
+parts:
+  kubectl:
+    plugin: dump
+    source: .
+    override-pull: |
+      curl -sSLO https://dl.k8s.io/release/v1.22.1/bin/linux/amd64/kubectl
+      chmod +x kubectl
+    build-packages:
+      - curl
