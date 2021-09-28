@@ -1,0 +1,19 @@
+name: training-operator
+display-name: Training Operator
+summary: Tools for distributed or non-distributed training on Kubernetes
+description: |
+  Training Operator provides Kubernetes custom resources that make it
+  easy to run distributed or non-distributed training jobs on Kubernetes.
+  This charm deploys the Operator configured for use with Kubeflow to
+  Kubernetes models in Juju.
+maintainers: [Juju Developers <juju@lists.ubuntu.com>]
+tags: [ai, bigdata, kubeflow, machine-learning, tensorflow, pytorch]
+containers:
+  training-operator:
+    resource: training-operator-image
+resources:
+  training-operator-image:
+    type: oci-image
+    description: OCI image for training-operator
+    auto-fetch: true
+    upstream-source: kubeflow/training-operator:4d4cf6485eb40d4e6e4badb03d341b8b78c2ec92
