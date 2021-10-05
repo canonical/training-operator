@@ -15,3 +15,6 @@ parts:
       chmod +x kubectl
     build-packages:
       - curl
+  charm:
+    build-packages:
+      - git
