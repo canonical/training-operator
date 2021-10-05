@@ -22,7 +22,7 @@ class TrainingOperatorCharm(CharmBase):
         self._namespace = self.model.name
         self._manager_service = "manager"
 
-        self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.install, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.training_operator_pebble_ready, self._on_training_operator_pebble_ready)
 
@@ -61,9 +61,26 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_config_changed(self, event):
         """
-        Placeholder for config changed event
+        Manages the confg changed event and will only take effect on the
+        manager service.
+        This piece of software creates a new Pebble configuration layer,
+        updates the Pebble plan, and restarts the manager service.
         """
-        pass
+        container = self.unit.get_container(self._name)
+        # Get current config
+        current_layer = container.get_plan().services
+        # Create a new config layer
+        new_layer = self._training_operator_layer()
+        if container.can_connect():
+            # Check if there are any changes
+            container.add_layer(self._manager_service, new_layer, combine=True)
+            if current_layer != new_layer["services"]:
+                logging.info("Updated Pebble plan with new configuration")
+                container.restart(self._manager_service)
+                logging.info("Restart training-operator")
+            self.unit.status = ActiveStatus()
+        else:
+            self.unit.status = WaitingStatus("Waiting for Pebble in workload container")
 
     def _on_install(self, event):
         """
