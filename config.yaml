@@ -1,0 +1,5 @@
+options:
+  container-port:
+    type: string
+    default: "8080"
+    description: Port used by the monitoring service
