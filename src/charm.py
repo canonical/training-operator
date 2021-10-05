@@ -22,7 +22,7 @@ class TrainingOperatorCharm(CharmBase):
         self._namespace = self.model.name
         self._manager_service = "manager"
 
-        self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.install, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(
             self.on.training_operator_pebble_ready,
@@ -52,22 +52,37 @@ class TrainingOperatorCharm(CharmBase):
         }
         return Layer(layer_config)
 
-    def _on_training_operator_pebble_ready(self, event):
-        """
-        Placeholder for pebble ready event
-        """
+    def _on_training_operator_pebble_ready(self, _):
+        """Placeholder for pebble ready event"""
         pass
 
-    def _on_config_changed(self, event):
-        """
-        Placeholder for config changed event
-        """
-        pass
+    def _on_config_changed(self, _):
+        """Event handler for config-changed events.
 
-    def _on_install(self, event):
+        On a config-changed event, a new Pebble configuration layer with the changes
+        will be created and compared to the existing one; if they differ, the Pebble
+        plan is updated and the manager service restarted.
+
         """
-        Placeholder for install event
-        """
+        container = self.unit.get_container(self._name)
+        # Get current config
+        current_layer = container.get_plan().services
+        # Create a new config layer
+        new_layer = self._training_operator_layer
+        if container.can_connect():
+            # Check if there are any changes
+            if current_layer != new_layer.services:
+                container.add_layer(self._manager_service, new_layer, combine=True)
+                logging.info("Pebble plan updated with new configuration")
+                container.restart(self._manager_service)
+                logging.info("Restart training-operator")
+            self.unit.status = ActiveStatus()
+        else:
+            self.unit.status = WaitingStatus("Waiting for Pebble in workload container")
+
+
+    def _on_install(self, _):
+        """Placeholder for install event"""
         pass
 
 
