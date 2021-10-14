@@ -7,7 +7,7 @@ from pathlib import Path
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, WaitingStatus, MaintenanceStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
@@ -107,12 +107,38 @@ class TrainingOperatorCharm(CharmBase):
                     raise
         logging.info("Auth resources successfully created.")
 
+    def _create_crds(self) -> None:
+        """Creates training-jobs CRDs.
+
+        Raises:
+            ApiError: if creating any of the CRDs fails.
+        """
+        self.unit.status = MaintenanceStatus("Creating CRDs")
+        client = Client()
+
+        with open(Path(self._src_dir) / "crds_manifests.yaml") as f:
+            for obj in codecs.load_all_yaml(f):
+                try:
+                    client.create(obj)
+                    logging.info(f"{obj.metadata.name} CRD successfully created.")
+                except ApiError as e:
+                    if e.status.reason == "AlreadyExists":
+                        logging.info(
+                            f"{obj.metadata.name} CRD already present. It will be used by the operator."
+                        )
+                    else:
+                        logging.error(
+                            f"Creating {obj.metadata.name} failed: {e.status.reason}"
+                        )
+                        raise
+
     def _on_install(self, _):
         """Event handler for on-install events."""
         auth = self._patch_auth_resources()
+        crds = self._create_crds()
 
-        # Check resources were applied correctly
-        if auth:
+        # Check resources were applied/created correctly
+        if auth and crds:
             self.unit.status = ActiveStatus()
 
 
