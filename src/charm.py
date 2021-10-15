@@ -2,12 +2,13 @@
 
 import os
 import logging
+import traceback
 from pathlib import Path
 
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
@@ -134,13 +135,17 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_install(self, _):
         """Event handler for on-install events."""
-        auth = self._patch_auth_resources()
-        crds = self._create_crds()
-
-        # Check resources were applied/created correctly
-        if auth and crds:
+        try:
+            self._patch_auth_resources()
+            self._create_crds()
+        except ApiError as e:
+            logging.error(f"Some Kubernetes resources failed to be created/patched")
+            logging.error(traceback.format_exc())
+            self.unit.status = BlockedStatus(
+                f"Creating/patching resources failed with code {str(e.status.code)}."
+            )
+        else:
             self.unit.status = ActiveStatus()
-
 
 if __name__ == "__main__":
     main(TrainingOperatorCharm)
