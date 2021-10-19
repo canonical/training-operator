@@ -15,7 +15,6 @@ from lightkube.types import PatchType
 
 logger = logging.getLogger(__name__)
 
-
 class TrainingOperatorCharm(CharmBase):
     """A Juju Charm for Training Operator"""
 
@@ -28,6 +27,9 @@ class TrainingOperatorCharm(CharmBase):
         self._namespace = self.model.name
         self._manager_service = "manager"
         self._src_dir = Path(__file__).parent
+        self._container = self.unit.get_container(self._name)
+        self._resource_files = {"auth":"auth_manifests.yaml", "crds":"crds_manifests.yaml"}
+        self._context = {"namespace": self._namespace, "app_name": self._name}
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -59,54 +61,30 @@ class TrainingOperatorCharm(CharmBase):
         }
         return Layer(layer_config)
 
-    def _on_training_operator_pebble_ready(self, _):
-        """Placeholder for pebble ready event"""
-        pass
-
-    def _on_config_changed(self, _):
-        """Event handler for config-changed events.
-
-        On a config-changed event, a new Pebble configuration layer with the changes
-        will be created and compared to the existing one; if they differ, the Pebble
-        plan is updated and the manager service restarted.
-
-        """
-        container = self.unit.get_container(self._name)
-        # Get current config
-        current_layer = container.get_plan().services
+    def _update_layer(self) -> None:
+        """Updates the Pebble configuration layer if changed."""
+         # Get current config
+        current_layer = self._container.get_plan()
         # Create a new config layer
         new_layer = self._training_operator_layer
-        if container.can_connect():
-            # Check if there are any changes
-            if current_layer != new_layer.services:
-                container.add_layer(self._manager_service, new_layer, combine=True)
-                logging.info("Pebble plan updated with new configuration")
-                container.restart(self._manager_service)
-                logging.info("Restart training-operator")
-            self.unit.status = ActiveStatus()
-        else:
-            self.unit.status = WaitingStatus("Waiting for Pebble in workload container")
+        if current_layer.services != new_layer.services:
+            self._container.add_layer(self._manager_service, new_layer, combine=True)
+            self._container.restart(self._manager_service)
+            logging.info("Pebble plan updated with new configuration")
 
-    def _patch_auth_resources(self) -> None:
-        """Create the Kubernetes auth resources created by Juju.
-
-        Raises:
-            ApiError: if creating any of the auth resources fails.
-        """
-        self.unit.status = MaintenanceStatus("Setting auth configuration")
+    def _create_resource(self, resource_type: str, context: dict=None) -> None:
+        """Helper method to create Kubernetes resources."""
         client = Client()
-        context = {"namespace": self._namespace, "app_name": self._name}
-
-        with open(Path(self._src_dir) / "auth_manifests.yaml") as f:
+        with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
             for obj in codecs.load_all_yaml(f, context=context):
-                try:
-                    client.create(obj)
-                except ApiError as e:
-                    logging.error(
-                        f"Creating {obj.metadata.name} failed: {e.status.reason}"
-                    )
-                    raise
-        logging.info("Auth resources successfully created.")
+                client.create(obj)
+
+    def _patch_resource(self, resource_type: str, context: dict=None) -> None:
+        """Helper method to patch Kubernetes resources."""
+        client = Client()
+        with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
+           for obj in codecs.load_all_yaml(f, context=context):
+               client.patch(type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE)
 
     def _create_crds(self) -> None:
         """Creates training-jobs CRDs.
@@ -114,38 +92,65 @@ class TrainingOperatorCharm(CharmBase):
         Raises:
             ApiError: if creating any of the CRDs fails.
         """
-        self.unit.status = MaintenanceStatus("Creating CRDs")
-        client = Client()
-
-        with open(Path(self._src_dir) / "crds_manifests.yaml") as f:
-            for obj in codecs.load_all_yaml(f):
-                try:
-                    client.create(obj)
-                    logging.info(f"{obj.metadata.name} CRD successfully created.")
-                except ApiError as e:
-                    if e.status.reason == "AlreadyExists":
-                        logging.info(
-                            f"{obj.metadata.name} CRD already present. It will be used by the operator."
-                        )
-                    else:
-                        logging.error(
-                            f"Creating {obj.metadata.name} failed: {e.status.reason}"
-                        )
-                        raise
+        try:
+            self._create_resource(resource_type="crds")
+        except ApiError as e:
+            if e.status.reason == "AlreadyExists":
+                logging.info(
+                    f"{e.status.details.name} CRD already present. It will be used by the operator."
+                )
+            else:
+                raise
 
     def _on_install(self, _):
-        """Event handler for on-install events."""
+        """Event handler for InstallEvent."""
+        if not self._container.can_connect():
+            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            return
+
+        # Update Pebble configuration layer if it has changed
+        self._update_layer()
+
+        # Patch/create Kubernetes resources
         try:
-            self._patch_auth_resources()
+            self.unit.status = MaintenanceStatus("Creating auth resources")
+            self._create_resource(resource_type="auth", context=self._context)
+            self.unit.status = MaintenanceStatus("Creating CRDs")
             self._create_crds()
         except ApiError as e:
-            logging.error(f"Some Kubernetes resources failed to be created/patched")
             logging.error(traceback.format_exc())
             self.unit.status = BlockedStatus(
                 f"Creating/patching resources failed with code {str(e.status.code)}."
             )
         else:
             self.unit.status = ActiveStatus()
+
+    def _on_config_changed(self, _):
+        """Event handler for ConfigChangedEvent"""
+        if not self._container.can_connect():
+            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            return
+
+        # Update Pebble configuration layer if it has changed
+        self._update_layer()
+
+        # Patch/create Kubernetes resources
+        try:
+            self.unit.status = MaintenanceStatus("Patching auth resources")
+            self._patch_resource(resource_type="auth", context=self._context)
+            self.unit.status = MaintenanceStatus("Patching CRDs")
+            self._patch_resource(resource_type="crds")
+        except ApiError as e:
+            logging.error(traceback.format_exc())
+            self.unit.status = BlockedStatus(
+                f"Patching resources failed with code {str(e.status.code)}."
+            )
+        else:
+            self.unit.status = ActiveStatus()
+
+    def _on_training_operator_pebble_ready(self, _):
+        """Event handler for on PebbleReadyEvent"""
+        self._update_layer()
 
 if __name__ == "__main__":
     main(TrainingOperatorCharm)
