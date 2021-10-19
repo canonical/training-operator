@@ -14,4 +14,4 @@ resources:
   training-operator-image:
     type: oci-image
     description: OCI image for training-operator
-    upstream-source: kubeflow/training-operator:4d4cf6485eb40d4e6e4badb03d341b8b78c2ec92
+    upstream-source: public.ecr.aws/j1r0q0g6/training/training-operator:760ac1171dd30039a7363ffa03c77454bd714da5
