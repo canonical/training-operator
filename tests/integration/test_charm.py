@@ -106,7 +106,8 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
         assert job_status in [
             "Running",
             "Succeeded",
-        ], f"{job_object.metadata.name} was not running or did not succeed"
+        ], f"{job_object.metadata.name} was not running or did not succeed" \
+        f" (status == {job_status})"
 
     assert_get_job()
     assert_job_status_running_success()
