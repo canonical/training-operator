@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import os
 import logging
 import traceback
 from pathlib import Path
@@ -8,12 +7,12 @@ from pathlib import Path
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
-
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
 
 logger = logging.getLogger(__name__)
+
 
 class TrainingOperatorCharm(CharmBase):
     """A Juju Charm for Training Operator"""
@@ -28,7 +27,10 @@ class TrainingOperatorCharm(CharmBase):
         self._manager_service = "manager"
         self._src_dir = Path(__file__).parent
         self._container = self.unit.get_container(self._name)
-        self._resource_files = {"auth":"auth_manifests.yaml", "crds":"crds_manifests.yaml"}
+        self._resource_files = {
+            "auth": "auth_manifests.yaml",
+            "crds": "crds_manifests.yaml",
+        }
         self._context = {"namespace": self._namespace, "app_name": self._name}
 
         self.framework.observe(self.on.install, self._on_install)
@@ -63,7 +65,7 @@ class TrainingOperatorCharm(CharmBase):
 
     def _update_layer(self) -> None:
         """Updates the Pebble configuration layer if changed."""
-         # Get current config
+        # Get current config
         current_layer = self._container.get_plan()
         # Create a new config layer
         new_layer = self._training_operator_layer
@@ -72,19 +74,21 @@ class TrainingOperatorCharm(CharmBase):
             self._container.restart(self._manager_service)
             logging.info("Pebble plan updated with new configuration")
 
-    def _create_resource(self, resource_type: str, context: dict=None) -> None:
+    def _create_resource(self, resource_type: str, context: dict = None) -> None:
         """Helper method to create Kubernetes resources."""
         client = Client()
         with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
             for obj in codecs.load_all_yaml(f, context=context):
                 client.create(obj)
 
-    def _patch_resource(self, resource_type: str, context: dict=None) -> None:
+    def _patch_resource(self, resource_type: str, context: dict = None) -> None:
         """Helper method to patch Kubernetes resources."""
         client = Client()
         with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
-           for obj in codecs.load_all_yaml(f, context=context):
-               client.patch(type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE)
+            for obj in codecs.load_all_yaml(f, context=context):
+                client.patch(
+                    type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE
+                )
 
     def _create_crds(self) -> None:
         """Creates training-jobs CRDs.
@@ -151,6 +155,7 @@ class TrainingOperatorCharm(CharmBase):
     def _on_training_operator_pebble_ready(self, _):
         """Event handler for on PebbleReadyEvent"""
         self._update_layer()
+
 
 if __name__ == "__main__":
     main(TrainingOperatorCharm)
