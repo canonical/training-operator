@@ -1,17 +1,18 @@
 import glob
 from pathlib import Path
 
-import yaml
+import lightkube
+import lightkube.codecs
+import lightkube.generic_resource
 import pytest
 import tenacity
-import lightkube.generic_resource
+import yaml
 
-from lightkube import codecs, Client
 from pytest_operator.plugin import OpsTest
-from tenacity import retry, wait_exponential, stop_after_delay
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
+
 
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest):
@@ -31,6 +32,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
     )
     assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
 
+
 def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
     crds_kinds = [
@@ -45,9 +47,11 @@ def lightkube_create_global_resources() -> dict:
         jobs_classes[kind["kind"]] = job_class
     return jobs_classes
 
+
 # TODO: Kubeflow upstream MXNet examples use GPU.
 # Not testing MXNetjobs until we have a CPU mxjob example.
 JOBS_CLASSES = lightkube_create_global_resources()
+
 
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
 def test_create_training_jobs(ops_test: OpsTest, example: str):
@@ -90,7 +94,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=2, min=1, max=120),
         stop=tenacity.stop_after_attempt(3),
-        reraise=True
+        reraise=True,
     )
     def assert_job_status_running_success():
         """Asserts on the job status.
@@ -106,8 +110,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
         assert job_status in [
             "Running",
             "Succeeded",
-        ], f"{job_object.metadata.name} was not running or did not succeed" \
-        f" (status == {job_status})"
+        ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
 
     assert_get_job()
     assert_job_status_running_success()
