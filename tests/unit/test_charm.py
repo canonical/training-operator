@@ -1,10 +1,7 @@
-from pathlib import Path
 import unittest
-from glob import glob
 from unittest.mock import MagicMock, Mock, patch
 import logging
 
-import lightkube
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
 from ops.model import ActiveStatus, BlockedStatus
@@ -87,7 +84,8 @@ class TestCharm(unittest.TestCase):
                     self.assertEqual(
                         self.harness.charm.unit.status,
                         BlockedStatus(
-                            f"Creating/patching resources failed with code {create_type.side_effect.response.code}."
+                            f"Creating/patching resources failed with code"
+                            f"{create_type.side_effect.response.code}."
                         ),
                     )
 
@@ -145,7 +143,6 @@ class TestCharm(unittest.TestCase):
                 with open(f"./src/{template}") as f:
                     for resource in codecs.load_all_yaml(f, context):
                         client.assert_any_call(resource)
-
 
     @patch("charm.TrainingOperatorCharm._create_resource")
     @patch("charm.ApiError", _FakeApiError)
