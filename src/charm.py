@@ -65,6 +65,10 @@ class TrainingOperatorCharm(CharmBase):
 
     def _update_layer(self) -> None:
         """Updates the Pebble configuration layer if changed."""
+        if not self._container.can_connect():
+            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
+            return
+
         # Get current config
         current_layer = self._container.get_plan()
         # Create a new config layer
@@ -108,9 +112,6 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_install(self, _):
         """Event handler for InstallEvent."""
-        if not self._container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return
 
         # Update Pebble configuration layer if it has changed
         self._update_layer()
@@ -131,9 +132,6 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_config_changed(self, _):
         """Event handler for ConfigChangedEvent"""
-        if not self._container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return
 
         # Update Pebble configuration layer if it has changed
         self._update_layer()
