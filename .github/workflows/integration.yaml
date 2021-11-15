@@ -52,10 +52,10 @@ jobs:
         with:
             provider: microk8s
             channel: 1.21/stable
+            charmcraft-channel: latest/candidate
 
-      # https://github.com/charmed-kubernetes/actions-operator/issues/27
-      - name: Install charmcraft latest/candidate
-        run: sudo snap refresh charmcraft --channel latest/candidate
+      - name: debug - print installed snaps
+        run: snap list
 
       - name: Run integration tests
         run: tox -e integration -- --model testing
