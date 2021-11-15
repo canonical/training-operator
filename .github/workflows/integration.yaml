@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@fix-channel-args
+        uses: charmed-kubernetes/actions-operator@main
         with:
             provider: microk8s
             channel: 1.21/stable
