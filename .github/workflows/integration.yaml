@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 8 * * TUE'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: pip install tox
+
+    - name: Lint code
+      run: tox -vve lint
+
+  unit-test:
+    name: Unit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: pip install tox
+
+      - name: Run unit tests
+        run: tox -e unit
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage
+          path: training-operator-cov_html
+        if: failure()
+
+  integration-test:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Setup operator environment
+        uses: charmed-kubernetes/actions-operator@main
+        with:
+            provider: microk8s
+            channel: 1.21/stable
+            charmcraft-channel: latest/candidate
+
+      - name: Run integration tests
+        run: tox -e integration -- --model testing
+
+      - name: Capture k8s resources on failure
+        run: |
+          set -eux
+          kubectl get all -A
+          kubectl get pods -n testing --show-labels
+          kubectl get crds
+        if: failure()
+
+      - name: Get juju status
+        run: juju status
+        if: failure()
+
+      - name: Get workload logs
+        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ccharm
+        if: failure()
+
+      - name: Get operator logs
+        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ctraining-operator
+        if: failure()

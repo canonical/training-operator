@@ -8,5 +8,5 @@ bases:
       channel: "20.04"
 parts:
   charm:
-    build-packages:
-      - git
+    charm-python-packages: [setuptools, pip]
+    build-packages: [git]

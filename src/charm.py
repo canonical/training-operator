@@ -75,8 +75,8 @@ class TrainingOperatorCharm(CharmBase):
         new_layer = self._training_operator_layer
         if current_layer.services != new_layer.services:
             self._container.add_layer(self._manager_service, new_layer, combine=True)
-            self._container.restart(self._manager_service)
             logging.info("Pebble plan updated with new configuration")
+        self._container.restart(self._manager_service)
 
     def _create_resource(self, resource_type: str, context: dict = None) -> None:
         """Helper method to create Kubernetes resources."""
