@@ -1,3 +1,6 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 # Switch back to pypi package when ops is updated with `container.can_connect`
 # ops
 git+https://github.com/canonical/operator/#egg=ops
