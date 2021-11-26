@@ -1,3 +1,6 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 name: training-operator
 display-name: Training Operator
 summary: Tools for distributed or non-distributed training on Kubernetes

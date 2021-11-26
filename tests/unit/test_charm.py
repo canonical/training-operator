@@ -1,6 +1,9 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+import logging
 import unittest
 from unittest.mock import MagicMock, Mock, patch
-import logging
 
 from lightkube import codecs
 from lightkube.core.exceptions import ApiError
