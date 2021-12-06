@@ -2,7 +2,6 @@
 # See LICENSE file for licensing details.
 
 name: training-operator
-display-name: Training Operator
 summary: Tools for distributed or non-distributed training on Kubernetes
 description: |
   Training Operator provides Kubernetes custom resources that make it
