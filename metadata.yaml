@@ -1,6 +1,5 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
-
 name: training-operator
 summary: Tools for distributed or non-distributed training on Kubernetes
 description: |
@@ -8,7 +7,6 @@ description: |
   easy to run distributed or non-distributed training jobs on Kubernetes.
   This charm deploys the Operator configured for use with Kubeflow to
   Kubernetes models in Juju.
-maintainers: [Daniela Plascencia <daniela.plascencia@canonical.com>]
 containers:
   training-operator:
     resource: training-operator-image
