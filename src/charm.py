@@ -112,7 +112,7 @@ class TrainingOperatorCharm(CharmBase):
             else:
                 raise
 
-    def _on_install(self, _):
+    def _on_install(self, event):
         """Event handler for InstallEvent."""
 
         # Update Pebble configuration layer if it has changed
@@ -129,6 +129,15 @@ class TrainingOperatorCharm(CharmBase):
             self.unit.status = BlockedStatus(
                 f"Creating/patching resources failed with code {str(e.status.code)}."
             )
+            if e.status.code == 403:
+                logging.error(
+                    "Received Forbidden (403) error when creating auth resources."
+                    "This may be due to the charm lacking permissions to create"
+                    "cluster-scoped resources."
+                    "Charm must be deployed with --trust"
+                )
+                event.defer()
+                return
         else:
             self.unit.status = ActiveStatus()
 
