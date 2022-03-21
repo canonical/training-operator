@@ -6,6 +6,8 @@ import logging
 import traceback
 from pathlib import Path
 
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
@@ -24,6 +26,21 @@ class TrainingOperatorCharm(CharmBase):
 
         self.logger = logging.getLogger(__name__)
 
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="monitoring",
+            jobs=[
+                {
+                    "job_name": "training_operator",
+                    "scrape_interval": self.config["metrics-scrape-interval"],
+                    "metrics_path": self.config["metrics-api"],
+                    "static_configs": [{"targets": ["*:{}".format(self.config["metrics-port"])]}],
+                }
+            ],
+        )
+
+        self.dashboard_provider = GrafanaDashboardProvider(self)
+
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._manager_service = "manager"
@@ -41,6 +58,15 @@ class TrainingOperatorCharm(CharmBase):
             self.on.training_operator_pebble_ready,
             self._on_training_operator_pebble_ready,
         )
+
+        monitoring_events = [
+            self.on["monitoring"].relation_changed,
+            self.on["monitoring"].relation_broken,
+            self.on["monitoring"].relation_departed,
+        ]
+
+        for event in monitoring_events:
+            self.framework.observe(event, self._monitoring)
 
     @property
     def _training_operator_layer(self) -> Layer:
@@ -164,6 +190,22 @@ class TrainingOperatorCharm(CharmBase):
     def _on_training_operator_pebble_ready(self, _):
         """Event handler for on PebbleReadyEvent"""
         self._update_layer()
+
+    def _check_leader(self):
+        if not self.unit.is_leader():
+            # We can't do anything useful when not the leader, so do nothing.
+            raise CheckFailedError("Waiting for leadership", WaitingStatus)
+
+    def _monitoring(self, event):
+        try:
+            self._check_leader()
+        except CheckFailedError as check_failed:
+            self.model.unit.status = check_failed.status
+            self.logger.info(str(check_failed.status))
+            return
+
+        self._update_layer()
+        self.model.unit.status = ActiveStatus()
 
 
 if __name__ == "__main__":
