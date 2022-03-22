@@ -117,3 +117,32 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
 
     assert_get_job()
     assert_job_status_running_success()
+
+
+async def test_prometheus_grafana_integration(ops_test: OpsTest):
+    """Deploy prometheus, grafana and required relations, then test the metrics."""
+    prometheus = "prometheus-k8s"
+    grafana = "grafana-k8s"
+
+    await ops_test.model.deploy(prometheus, channel="latest/beta")
+    await ops_test.model.deploy(grafana, channel="latest/beta")
+    await ops_test.model.add_relation(prometheus, grafana)
+    await ops_test.model.add_relation(APP_NAME, grafana)
+    await ops_test.model.add_relation(prometheus, APP_NAME)
+
+    await ops_test.model.wait_for_idle(status="active", timeout=60 * 10)
+
+    status = await ops_test.model.get_status()
+    prometheus_unit_ip = status["applications"][prometheus]["units"][f"{prometheus}/0"]["address"]
+    logger.info(f"Prometheus available at http://{prometheus_unit_ip}:9090")
+
+    r = requests.get(
+        f'http://{prometheus_unit_ip}:9090/api/v1/query?query=up{{juju_application="{APP_NAME}"}}'
+    )
+    response = json.loads(r.content.decode("utf-8"))
+    response_status = response["status"]
+    logger.info(f"Response status is {response_status}")
+
+    response_metric = response["data"]["result"][0]["metric"]
+    assert response_metric["juju_application"] == APP_NAME
+    assert response_metric["juju_model"] == ops_test.model_name
