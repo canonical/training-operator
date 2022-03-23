@@ -39,8 +39,6 @@ class TrainingOperatorCharm(CharmBase):
             ],
         )
 
-        self.dashboard_provider = GrafanaDashboardProvider(self)
-
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._manager_service = "manager"
@@ -51,6 +49,8 @@ class TrainingOperatorCharm(CharmBase):
             "crds": "crds_manifests.yaml",
         }
         self._context = {"namespace": self._namespace, "app_name": self._name}
+
+        self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)

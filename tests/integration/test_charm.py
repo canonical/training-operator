@@ -2,16 +2,21 @@
 # See LICENSE file for licensing details.
 
 import glob
+import json
+import logging
 from pathlib import Path
 
 import lightkube
 import lightkube.codecs
 import lightkube.generic_resource
 import pytest
+import requests
 import tenacity
 import yaml
 
 from pytest_operator.plugin import OpsTest
+
+logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
@@ -109,7 +114,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
             job_class.Status, name=job_object.metadata.name, namespace=namespace
         ).status["conditions"][-1]["type"]
 
-        # Check wether the last status of *Job is Running/Success
+        # Check whether the last status of *Job is Running/Success
         assert job_status in [
             "Running",
             "Succeeded",
