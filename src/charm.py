@@ -34,7 +34,9 @@ class TrainingOperatorCharm(CharmBase):
                     "job_name": "training_operator",
                     "scrape_interval": self.config["metrics-scrape-interval"],
                     "metrics_path": self.config["metrics-api"],
-                    "static_configs": [{"targets": ["*:{}".format(self.config["metrics-port"])]}],
+                    "static_configs": [
+                        {"targets": ["*:{}".format(self.config["metrics-port"])]}
+                    ],
                 }
             ],
         )
