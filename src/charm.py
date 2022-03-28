@@ -11,7 +11,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
 
@@ -208,6 +208,17 @@ class TrainingOperatorCharm(CharmBase):
 
         self._update_layer()
         self.model.unit.status = ActiveStatus()
+
+
+class CheckFailedError(Exception):
+    """Raise this exception if one of the checks in main fails."""
+
+    def __init__(self, msg, status_type=None):
+        super().__init__()
+
+        self.msg = msg
+        self.status_type = status_type
+        self.status = status_type(msg)
 
 
 if __name__ == "__main__":
