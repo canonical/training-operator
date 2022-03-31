@@ -11,9 +11,13 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
+
+
+METRICS_PATH = "/metrics"
+METRICS_PORT = "8080"
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +32,11 @@ class TrainingOperatorCharm(CharmBase):
 
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
-            relation_name="monitoring",
+            relation_name="metrics-endpoint",
             jobs=[
                 {
-                    "job_name": "training_operator",
-                    "scrape_interval": self.config["metrics-scrape-interval"],
-                    "metrics_path": self.config["metrics-api"],
-                    "static_configs": [
-                        {"targets": ["*:{}".format(self.config["metrics-port"])]}
-                    ],
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
                 }
             ],
         )
@@ -52,7 +52,10 @@ class TrainingOperatorCharm(CharmBase):
         }
         self._context = {"namespace": self._namespace, "app_name": self._name}
 
-        self.dashboard_provider = GrafanaDashboardProvider(self)
+        self.dashboard_provider = GrafanaDashboardProvider(
+            charm=self,
+            relation_name="grafana-dashboards",
+        )
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -60,15 +63,6 @@ class TrainingOperatorCharm(CharmBase):
             self.on.training_operator_pebble_ready,
             self._on_training_operator_pebble_ready,
         )
-
-        monitoring_events = [
-            self.on["monitoring"].relation_changed,
-            self.on["monitoring"].relation_broken,
-            self.on["monitoring"].relation_departed,
-        ]
-
-        for event in monitoring_events:
-            self.framework.observe(event, self._monitoring)
 
     @property
     def _training_operator_layer(self) -> Layer:
@@ -140,6 +134,22 @@ class TrainingOperatorCharm(CharmBase):
             else:
                 raise
 
+    def _create_auth_resources(self) -> None:
+        """Creates auth resources.
+
+        Raises:
+            ApiError: if creating any of the resources fails.
+        """
+        try:
+            self._create_resource(resource_type="auth", context=self._context)
+        except ApiError as e:
+            if e.status.reason == "AlreadyExists":
+                logging.info(
+                    f"{e.status.details.name} auth resource already present. It will be reused."
+                )
+            else:
+                raise
+
     def _on_install(self, event):
         """Event handler for InstallEvent."""
 
@@ -149,7 +159,7 @@ class TrainingOperatorCharm(CharmBase):
         # Patch/create Kubernetes resources
         try:
             self.unit.status = MaintenanceStatus("Creating auth resources")
-            self._create_resource(resource_type="auth", context=self._context)
+            self._create_auth_resources()
             self.unit.status = MaintenanceStatus("Creating CRDs")
             self._create_crds()
         except ApiError as e:
@@ -192,33 +202,6 @@ class TrainingOperatorCharm(CharmBase):
     def _on_training_operator_pebble_ready(self, _):
         """Event handler for on PebbleReadyEvent"""
         self._update_layer()
-
-    def _check_leader(self):
-        if not self.unit.is_leader():
-            # We can't do anything useful when not the leader, so do nothing.
-            raise CheckFailedError("Waiting for leadership", WaitingStatus)
-
-    def _monitoring(self, event):
-        try:
-            self._check_leader()
-        except CheckFailedError as check_failed:
-            self.model.unit.status = check_failed.status
-            self.logger.info(str(check_failed.status))
-            return
-
-        self._update_layer()
-        self.model.unit.status = ActiveStatus()
-
-
-class CheckFailedError(Exception):
-    """Raise this exception if one of the checks in main fails."""
-
-    def __init__(self, msg, status_type=None):
-        super().__init__()
-
-        self.msg = msg
-        self.status_type = status_type
-        self.status = status_type(msg)
 
 
 if __name__ == "__main__":

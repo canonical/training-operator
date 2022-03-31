@@ -16,7 +16,7 @@ resources:
     description: OCI image for training-operator
     upstream-source: public.ecr.aws/j1r0q0g6/training/training-operator:760ac1171dd30039a7363ffa03c77454bd714da5
 provides:
-  monitoring:
+  metrics-endpoint:
     interface: prometheus_scrape
-  grafana-dashboard:
+  grafana-dashboards:
     interface: grafana_dashboard
