@@ -6,12 +6,18 @@ import logging
 import traceback
 from pathlib import Path
 
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
+
+
+METRICS_PATH = "/metrics"
+METRICS_PORT = "8080"
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +30,17 @@ class TrainingOperatorCharm(CharmBase):
 
         self.logger = logging.getLogger(__name__)
 
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
+                }
+            ],
+        )
+
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._manager_service = "manager"
@@ -34,6 +51,11 @@ class TrainingOperatorCharm(CharmBase):
             "crds": "crds_manifests.yaml",
         }
         self._context = {"namespace": self._namespace, "app_name": self._name}
+
+        self.dashboard_provider = GrafanaDashboardProvider(
+            charm=self,
+            relation_name="grafana-dashboards",
+        )
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -112,6 +134,22 @@ class TrainingOperatorCharm(CharmBase):
             else:
                 raise
 
+    def _create_auth_resources(self) -> None:
+        """Creates auth resources.
+
+        Raises:
+            ApiError: if creating any of the resources fails.
+        """
+        try:
+            self._create_resource(resource_type="auth", context=self._context)
+        except ApiError as e:
+            if e.status.reason == "AlreadyExists":
+                logging.info(
+                    f"{e.status.details.name} auth resource already present. It will be reused."
+                )
+            else:
+                raise
+
     def _on_install(self, event):
         """Event handler for InstallEvent."""
 
@@ -121,7 +159,7 @@ class TrainingOperatorCharm(CharmBase):
         # Patch/create Kubernetes resources
         try:
             self.unit.status = MaintenanceStatus("Creating auth resources")
-            self._create_resource(resource_type="auth", context=self._context)
+            self._create_auth_resources()
             self.unit.status = MaintenanceStatus("Creating CRDs")
             self._create_crds()
         except ApiError as e:

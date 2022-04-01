@@ -1,7 +1,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-black==20.8b1
+black
 flake8<4.1
 juju<2.10
 pytest<6.3
