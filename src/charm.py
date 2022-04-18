@@ -52,10 +52,7 @@ class TrainingOperatorCharm(CharmBase):
         }
         self._context = {"namespace": self._namespace, "app_name": self._name}
 
-        self.dashboard_provider = GrafanaDashboardProvider(
-            charm=self,
-            relation_name="grafana-dashboards",
-        )
+        self.dashboard_provider = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)

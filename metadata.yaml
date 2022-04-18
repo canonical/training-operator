@@ -18,5 +18,5 @@ resources:
 provides:
   metrics-endpoint:
     interface: prometheus_scrape
-  grafana-dashboards:
+  grafana-dashboard:
     interface: grafana_dashboard
