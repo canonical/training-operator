@@ -1,3 +1,4 @@
+# reusable workflow triggered manually
 name: Release charm to other tracks and channels
 
 on:
@@ -8,10 +9,7 @@ on:
         required: true
       origin-channel:
         description: 'Origin Channel'
-        required: false
-      rev:
-        description: 'Revision number'
-        required: false
+        required: true
 
 jobs:
   promote-charm:
@@ -20,10 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Release charm to channel
-        uses: canonical/charming-actions/release-charm@promote-charm
+        uses: canonical/charming-actions/release-charm@1.0.3
         with:
           credentials: ${{ secrets.CHARMCRAFT_CREDENTIALS }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           destination-channel: ${{ github.event.inputs.destination-channel }}
           origin-channel: ${{ github.event.inputs.origin-channel }}
-          revision: ${{ github.event.inputs.rev }}
