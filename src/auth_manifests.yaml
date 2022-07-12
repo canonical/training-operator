@@ -1,3 +1,4 @@
+# Source: manifests/base/cluster-role.yaml
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -9,10 +10,12 @@ rules:
   - apiGroups:
       - kubeflow.org
     resources:
+      - mpijobs
       - tfjobs
       - mxjobs
       - pytorchjobs
       - xgboostjobs
+      - mpijobs/status
       - tfjobs/status
       - pytorchjobs/status
       - mxjobs/status
@@ -41,100 +44,37 @@ rules:
       - deployments
     verbs:
       - "*"
+  # This is needed for the launcher role of the MPI operator.
+  - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+      - rolebindings
+    verbs:
+      - create
+      - list
+      - watch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+    - configmaps
+    - secrets
+    - serviceaccounts
+    verbs:
+      - create
+      - list
+      - watch
+      - update
   - apiGroups:
       - scheduling.volcano.sh
     resources:
       - podgroups
     verbs:
       - "*"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: {{ app_name }}
-  name: {{ namespace }}-{{ app_name }}-charm
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ namespace }}-{{ app_name }}-charm
-subjects:
-- kind: ServiceAccount
-  name: {{ app_name }}
-  namespace: {{ namespace }}
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: kubeflow-training-admin
-  labels:
-    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin: "true"
-aggregationRule:
-  clusterRoleSelectors:
-    - matchLabels:
-        rbac.authorization.kubeflow.org/aggregate-to-kubeflow-training-admin: "true"
-rules: []
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: kubeflow-training-edit
-  labels:
-    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: "true"
-    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-training-admin: "true"
-rules:
-  - apiGroups:
-      - kubeflow.org
-    resources:
-      - tfjobs
-      - pytorchjobs
-      - mxjobs
-      - xgboostjobs
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - kubeflow.org
-    resources:
-      - tfjobs/status
-      - pytorchjobs/status
-      - mxjobs/status
-      - xgboostjobs/status
-    verbs:
-      - get
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: kubeflow-training-view
-  labels:
-    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-view: "true"
-rules:
-  - apiGroups:
-      - kubeflow.org
-    resources:
-      - tfjobs
-      - pytorchjobs
-      - mxjobs
-      - xgboostjobs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - kubeflow.org
-    resources:
-      - tfjobs/status
-      - pytorchjobs/status
-      - mxjobs/status
-      - xgboostjobs/status
-    verbs:
-      - get
