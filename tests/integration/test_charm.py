@@ -81,7 +81,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     # Allow the resource to be created
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
-        stop=tenacity.stop_after_delay(30),
+        stop=tenacity.stop_after_delay(50),
         reraise=True,
     )
     def assert_get_job():
@@ -100,8 +100,8 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     # TODO: change this workaround after
     # we have an implementation in lightkube
     @tenacity.retry(
-        wait=tenacity.wait_exponential(multiplier=2, min=1, max=30),
-        stop=tenacity.stop_after_attempt(10),
+        wait=tenacity.wait_exponential(multiplier=2, min=1, max=50),
+        stop=tenacity.stop_after_attempt(100),
         reraise=True,
     )
     def assert_job_status_running_success():
