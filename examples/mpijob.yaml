@@ -39,9 +39,9 @@ spec:
             resources:
               limits:
                 cpu: 1
-                memory: 2Gi
+                memory: 1Gi
     Worker:
-      replicas: 2
+      replicas: 1
       template:
         spec:
           containers:
@@ -49,5 +49,5 @@ spec:
             name: mpi
             resources:
               limits:
-                cpu: 2
-                memory: 4Gi
+                cpu: 1
+                memory: 2Gi
