@@ -7,6 +7,8 @@ description: |
   easy to run distributed or non-distributed training jobs on Kubernetes.
   This charm deploys the Operator configured for use with Kubeflow to
   Kubernetes models in Juju.
+series: [kubernetes]
+min-juju-version: "2.9.0"
 containers:
   training-operator:
     resource: training-operator-image
