@@ -5,9 +5,8 @@ on:
     - cron: '0 8 * * TUE'
 
 jobs:
-
   tests:
     name: Run Tests
-    uses: ./.github/workflows/integration.yaml
+    uses: ./.github/workflows/integrate.yaml
     secrets:
-      charmcraft-credentials: "${{ secrets.CHARMCRAFT_CREDENTIALS }}"
+      charmcraft-credentials: '${{ secrets.CHARMCRAFT_CREDENTIALS }}'
