@@ -3,7 +3,9 @@
 
 black
 flake8<4.1
-juju<2.10
+# need this fix but it is not yet released
+# https://github.com/juju/python-libjuju/pull/696
+git+https://github.com/juju/python-libjuju.git@80eb84e008df35c4398fe66ed161e080e3340ae5
 pytest<6.3
 pytest-cov<3.0
 pyyaml<6.1
