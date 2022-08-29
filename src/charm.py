@@ -8,6 +8,8 @@ from pathlib import Path
 
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
+from charmed_kubeflow_chisme.pebble import update_layer
 from ops.main import main
 from ops.pebble import Layer
 from ops.charm import CharmBase
@@ -84,21 +86,6 @@ class TrainingOperatorCharm(CharmBase):
         }
         return Layer(layer_config)
 
-    def _update_layer(self) -> None:
-        """Updates the Pebble configuration layer if changed."""
-        if not self._container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return
-
-        # Get current config
-        current_layer = self._container.get_plan()
-        # Create a new config layer
-        new_layer = self._training_operator_layer
-        if current_layer.services != new_layer.services:
-            self._container.add_layer(self._manager_service, new_layer, combine=True)
-            logging.info("Pebble plan updated with new configuration")
-        self._container.restart(self._manager_service)
-
     def _create_resource(self, resource_type: str, context: dict = None) -> None:
         """Helper method to create Kubernetes resources."""
         client = Client()
@@ -151,7 +138,16 @@ class TrainingOperatorCharm(CharmBase):
         """Event handler for InstallEvent."""
 
         # Update Pebble configuration layer if it has changed
-        self._update_layer()
+        try:
+            update_layer(
+                self._name, self._container, self._training_operator_layer, logger
+            )
+        except ErrorWithStatus as e:
+            self.model.unit.status = e.status
+            if isinstance(e.status, BlockedStatus):
+                self.logger.error(str(e.msg))
+            else:
+                self.logger.info(str(e.msg))
 
         # Patch/create Kubernetes resources
         try:
@@ -180,7 +176,16 @@ class TrainingOperatorCharm(CharmBase):
         """Event handler for ConfigChangedEvent"""
 
         # Update Pebble configuration layer if it has changed
-        self._update_layer()
+        try:
+            update_layer(
+                self._name, self._container, self._training_operator_layer, logger
+            )
+        except ErrorWithStatus as e:
+            self.model.unit.status = e.status
+            if isinstance(e.status, BlockedStatus):
+                self.logger.error(str(e.msg))
+            else:
+                self.logger.info(str(e.msg))
 
         # Patch/create Kubernetes resources
         try:
@@ -198,7 +203,16 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_training_operator_pebble_ready(self, _):
         """Event handler for on PebbleReadyEvent"""
-        self._update_layer()
+        try:
+            update_layer(
+                self._name, self._container, self._training_operator_layer, logger
+            )
+        except ErrorWithStatus as e:
+            self.model.unit.status = e.status
+            if isinstance(e.status, BlockedStatus):
+                self.logger.error(str(e.msg))
+            else:
+                self.logger.info(str(e.msg))
 
 
 if __name__ == "__main__":
