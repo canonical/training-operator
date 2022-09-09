@@ -145,9 +145,9 @@ class TrainingOperatorCharm(CharmBase):
         except ErrorWithStatus as e:
             self.model.unit.status = e.status
             if isinstance(e.status, BlockedStatus):
-                self.logger.error(str(e.msg))
+                logger.error(str(e.msg))
             else:
-                self.logger.info(str(e.msg))
+                logger.info(str(e.msg))
 
         # Patch/create Kubernetes resources
         try:
@@ -183,9 +183,9 @@ class TrainingOperatorCharm(CharmBase):
         except ErrorWithStatus as e:
             self.model.unit.status = e.status
             if isinstance(e.status, BlockedStatus):
-                self.logger.error(str(e.msg))
+                logger.error(str(e.msg))
             else:
-                self.logger.info(str(e.msg))
+                logger.info(str(e.msg))
 
         # Patch/create Kubernetes resources
         try:
