@@ -15,7 +15,7 @@ from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
 
-
+# Some change
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
 
