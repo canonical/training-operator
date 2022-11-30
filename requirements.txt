@@ -1,6 +1,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-lightkube<=0.8.1
+lightkube==0.11.0
 jinja2<3.1
 ops==1.3.0
+charmed-kubeflow-chisme

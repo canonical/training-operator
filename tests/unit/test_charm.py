@@ -92,7 +92,7 @@ class TestCharm(unittest.TestCase):
                         ),
                     )
 
-    @patch("charm.TrainingOperatorCharm._update_layer")
+    @patch("charm.update_layer")
     @patch("charm.TrainingOperatorCharm._patch_resource")
     @patch("charm.ApiError", _FakeApiError)
     def test_config_changed_event(self, patch, update):
@@ -116,8 +116,7 @@ class TestCharm(unittest.TestCase):
                 ),
             )
 
-    @patch("charm.TrainingOperatorCharm._update_layer")
-    def test_on_training_operator_pebble_ready(self, update):
+    def test_on_training_operator_pebble_ready(self):
         self.harness.container_pebble_ready("training-operator")
 
         # Check the layer gets created
