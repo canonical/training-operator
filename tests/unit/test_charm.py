@@ -121,9 +121,7 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready("training-operator")
 
         # Check the layer gets created
-        self.assertIsNotNone(
-            self.harness.get_container_pebble_plan("training-operator")._services
-        )
+        self.assertIsNotNone(self.harness.get_container_pebble_plan("training-operator")._services)
 
     # Helpers
     @patch("charm.Client.create")
@@ -138,9 +136,7 @@ class TestCharm(unittest.TestCase):
         )
         for resource_type, context, template in subtests:
             with self.subTest(msg=f"Testing {resource_type} creation"):
-                self.harness.charm._create_resource(
-                    resource_type=resource_type, context=context
-                )
+                self.harness.charm._create_resource(resource_type=resource_type, context=context)
 
                 # Ensure client is called to create resources in src/*.yaml
                 with open(f"./src/{template}") as f:
