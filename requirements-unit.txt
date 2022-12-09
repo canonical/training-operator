@@ -10,7 +10,7 @@ anyio==3.6.2
     #   httpcore
 attrs==22.1.0
     # via pytest
-certifi==2022.9.24
+certifi==2022.12.7
     # via
     #   -r ./requirements.txt
     #   httpcore
@@ -52,12 +52,10 @@ markupsafe==2.1.1
     #   jinja2
 ops==1.5.4
     # via -r ./requirements.txt
-packaging==21.3
+packaging==22.0
     # via pytest
 pluggy==1.0.0
     # via pytest
-pyparsing==3.0.9
-    # via packaging
 pytest==7.2.0
     # via -r ./requirements-unit.in
 pyyaml==6.0
