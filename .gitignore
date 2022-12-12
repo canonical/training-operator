@@ -2,3 +2,5 @@ build/
 __pycache__
 .idea
 .tox
+.coverage
+*.charm

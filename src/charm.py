@@ -8,13 +8,12 @@ from pathlib import Path
 
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from ops.main import main
-from ops.pebble import Layer
-from ops.charm import CharmBase
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 from lightkube import ApiError, Client, codecs
 from lightkube.types import PatchType
-
+from ops.charm import CharmBase
+from ops.main import main
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import Layer
 
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
@@ -111,9 +110,7 @@ class TrainingOperatorCharm(CharmBase):
         client = Client()
         with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
             for obj in codecs.load_all_yaml(f, context=context):
-                client.patch(
-                    type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE
-                )
+                client.patch(type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE)
 
     def _create_crds(self) -> None:
         """Creates training-jobs CRDs.

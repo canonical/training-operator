@@ -1,0 +1,5 @@
+juju
+pytest-operator
+pyyaml
+tenacity
+-r requirements.txt
