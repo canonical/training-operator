@@ -44,7 +44,7 @@ def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
     crds_kinds = [
         crd["spec"]["names"]
-        for crd in yaml.safe_load_all(Path("./src/crds_manifests.yaml").read_text())
+        for crd in yaml.safe_load_all(Path("./src/templates/crds_manifests.yaml.j2").read_text())
     ]
     jobs_classes = {}
     for kind in crds_kinds:
