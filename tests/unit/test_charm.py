@@ -1,18 +1,14 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import logging
-import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, call, patch
 
-from lightkube import codecs
+import pytest
 from lightkube.core.exceptions import ApiError
-from ops.model import ActiveStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
 
 from charm import TrainingOperatorCharm
-
-logger = logging.getLogger(__name__)
 
 
 class _FakeResponse:
@@ -41,118 +37,156 @@ class _FakeApiError(ApiError):
         super().__init__(response=_FakeResponse(code))
 
 
-@patch("lightkube.core.client.GenericSyncClient", Mock)
-class TestCharm(unittest.TestCase):
-    def setUp(self):
-        self.harness = Harness(TrainingOperatorCharm)
-        self.addCleanup(self.harness.cleanup)
-        self.harness.begin()
+@pytest.fixture(scope="function")
+def harness() -> Harness:
+    """Create and return Harness for testing."""
+    harness = Harness(TrainingOperatorCharm)
 
-    # Event handlers
-    @patch("charm.TrainingOperatorCharm._create_crds")
-    @patch("charm.TrainingOperatorCharm._create_resource")
-    def test_install_event(self, create_auth, create_crds):
-        self.harness.charm.on.install.emit()
+    # setup container networking simulation
+    harness.set_can_connect("training-operator", True)
 
-        # Ensure create_auth and create_crds
-        # are called once
-        create_auth.assert_called_once()
-        create_crds.assert_called_once()
+    return harness
 
-        # Check status is Active
-        self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
 
-    @patch("charm.TrainingOperatorCharm._create_crds")
-    @patch("charm.TrainingOperatorCharm._create_resource")
+class TestCharm:
+    """Test class for TrainingOperatorCharm."""
+
+    def test_not_leader(self, harness: Harness):
+        """Test not a leader scenario."""
+        harness.begin_with_initial_hooks()
+        harness.container_pebble_ready("training-operator")
+        assert harness.charm.model.unit.status == WaitingStatus("Waiting for leadership")
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    def test_no_relation(
+        self,
+        _: MagicMock,  # k8s_resource_handler
+        ___: MagicMock,  # crd_resource_handler
+        harness: Harness,
+    ):
+        """Test no relation scenario."""
+        harness.set_leader(True)
+        harness.add_oci_resource(
+            "training-operator-image",
+            {
+                "registrypath": "ci-test",
+                "username": "",
+                "password": "",
+            },
+        )
+
+        harness.begin_with_initial_hooks()
+        harness.container_pebble_ready("training-operator")
+        assert harness.charm.model.unit.status == ActiveStatus("")
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    def test_pebble_layer(
+        self,
+        _: MagicMock,  # k8s_resource_handler
+        ___: MagicMock,  # crd_resource_handler
+        harness: Harness,
+    ):
+        """Test creation of Pebble layer. Only testing specific items."""
+        harness.set_leader(True)
+        harness.set_model_name("test_kubeflow")
+        harness.begin_with_initial_hooks()
+        harness.container_pebble_ready("training-operator")
+        pebble_plan = harness.get_container_pebble_plan("training-operator")
+        assert pebble_plan
+        assert pebble_plan._services
+        pebble_plan_info = pebble_plan.to_dict()
+        assert pebble_plan_info["services"]["training-operator"]["command"] == "/manager"
+        test_env = pebble_plan_info["services"]["training-operator"]["environment"]
+        assert 2 == len(test_env)
+        assert "test_kubeflow" == test_env["MY_POD_NAMESPACE"]
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    def test_deploy_k8s_resources_success(
+        self,
+        k8s_resource_handler: MagicMock,
+        crd_resource_handler: MagicMock,
+        harness: Harness,
+    ):
+        """Test if K8S resource handler is executed as expected."""
+        harness.begin()
+        harness.charm._deploy_k8s_resources()
+        crd_resource_handler.apply.assert_called()
+        k8s_resource_handler.apply.assert_called()
+        assert isinstance(harness.charm.model.unit.status, MaintenanceStatus)
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_blocked_on_appierror_on_install_event(self, create_auth, create_crds):
+    def test_blocked_on_appierror_on_k8s_resource_handler(
+        self, k8s_resource_handler: MagicMock, _: MagicMock, harness: Harness
+    ):
         # Ensure the unit is in BlockedStatus
         # on exception when creating auth resources
-        subtests = (
-            (
-                create_auth,
-                "Test BlockedStatus when ApiError is raised trying to create auth resources",
-            ),
-            (
-                create_crds,
-                "Test BlockedStatus when ApiError is raised trying to create CRDS",
-            ),
-        )
-        for create_type, subtest_description in subtests:
-            with self.subTest(msg=subtest_description):
-                create_type.side_effect = _FakeApiError()
-                try:
-                    self.harness.charm.on.install.emit()
-                except ApiError:
-                    self.assertEqual(
-                        self.harness.charm.unit.status,
-                        BlockedStatus(
-                            f"Creating/patching resources failed with code"
-                            f"{create_type.side_effect.response.code}."
-                        ),
-                    )
+        k8s_resource_handler.side_effect = _FakeApiError()
 
-    @patch("charm.TrainingOperatorCharm._update_layer")
-    @patch("charm.TrainingOperatorCharm._patch_resource")
-    @patch("charm.ApiError", _FakeApiError)
-    def test_config_changed_event(self, patch, update):
-        self.harness.charm.on.config_changed.emit()
-
-        # Ensure _update_layer is called once and
-        # _patch_resource is called
-        update.assert_called_once()
-        patch.assert_called()
-
-        # Ensure the unit is in BlockedStatus
-        # on exception when patching auth resources
-        patch.side_effect = _FakeApiError()
+        harness.begin()
         try:
-            self.harness.charm.on.config_changed.emit()
+            harness.charm.on.install.emit()
         except ApiError:
             self.assertEqual(
-                self.harness.charm.unit.status,
+                harness.charm.unit.status,
                 BlockedStatus(
-                    f"Patching resources failed with code {patch.side_effect.response.code}."
+                    f"Creating/patching resources failed with code"
+                    f"{k8s_resource_handler.side_effect.response.code}."
                 ),
             )
 
-    @patch("charm.TrainingOperatorCharm._update_layer")
-    def test_on_training_operator_pebble_ready(self, update):
-        self.harness.container_pebble_ready("training-operator")
-
-        # Check the layer gets created
-        self.assertIsNotNone(self.harness.get_container_pebble_plan("training-operator")._services)
-
-    # Helpers
-    @patch("charm.Client.create")
-    def test_create_resource(self, client: MagicMock):
-        subtests = (
-            (
-                "auth",
-                {"namespace": "unit-kubeflow", "app_name": "unit-training-operator"},
-                "auth_manifests.yaml",
-            ),
-            ("crds", {}, "crds_manifests.yaml"),
-        )
-        for resource_type, context, template in subtests:
-            with self.subTest(msg=f"Testing {resource_type} creation"):
-                self.harness.charm._create_resource(resource_type=resource_type, context=context)
-
-                # Ensure client is called to create resources in src/*.yaml
-                with open(f"./src/{template}") as f:
-                    for resource in codecs.load_all_yaml(f, context):
-                        client.assert_any_call(resource)
-
-    @patch("charm.TrainingOperatorCharm._create_resource")
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_create_crds(self, create_resource):
-        self.harness.charm._create_crds()
-        create_resource.assert_called_once()
+    def test_blocked_on_appierror_on_crd_resource_handler(
+        self,
+        k8s_resource_handler: MagicMock,
+        crd_resource_handler: MagicMock,
+        harness: Harness,
+    ):
+        # Ensure the unit is in BlockedStatus
+        # on exception when creating auth resources
+        crd_resource_handler.side_effect = _FakeApiError()
 
-        # Check ApiError is raised
-        create_resource.side_effect = _FakeApiError()
-        with self.assertRaises(ApiError):
-            self.harness.charm._create_crds()
+        harness.begin()
+        try:
+            harness.charm.on.install.emit()
+        except ApiError:
+            self.assertEqual(
+                harness.charm.unit.status,
+                BlockedStatus(
+                    f"Creating/patching resources failed with code"
+                    f"{crd_resource_handler.side_effect.response.code}."
+                ),
+            )
 
-        # TODO: Ensure 'CRD already present' message is logged on
-        # ApiError for reason='AlreadyExists'
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.delete_many")
+    def test_on_remove_success(
+        self,
+        delete_many: MagicMock,
+        k8s_resource_handler: MagicMock,
+        crd_resource_handler: MagicMock,
+        harness: Harness,
+    ):
+        harness.begin()
+        harness.charm.on.remove.emit()
+        k8s_resource_handler.assert_has_calls([call.render_manifests()])
+        crd_resource_handler.assert_has_calls([call.render_manifests()])
+        delete_many.assert_called()
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.delete_many")
+    def test_on_remove_failure(
+        self, delete_many: MagicMock, _: MagicMock, __: MagicMock, harness: Harness
+    ):
+        delete_many.side_effect = _FakeApiError()
+        harness.begin()
+        with pytest.raises(ApiError):
+            harness.charm.on.remove.emit()
