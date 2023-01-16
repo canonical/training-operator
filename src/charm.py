@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
+#
 
 import logging
-import traceback
-from pathlib import Path
 
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
+from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
+from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from lightkube import ApiError, Client, codecs
-from lightkube.types import PatchType
+from lightkube import ApiError
+from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.pebble import Layer
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.pebble import ChangeError, Layer
 
+K8S_RESOURCE_FILES = [
+    "src/templates/auth_manifests.yaml.j2",
+]
+CRD_RESOURCE_FILES = [
+    "src/templates/crds_manifests.yaml.j2",
+]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
 
@@ -42,23 +50,61 @@ class TrainingOperatorCharm(CharmBase):
 
         self._name = self.model.app.name
         self._namespace = self.model.name
-        self._manager_service = "manager"
-        self._src_dir = Path(__file__).parent
+        self._lightkube_field_manager = "lightkube"
+        self._container_name = "training-operator"
         self._container = self.unit.get_container(self._name)
-        self._resource_files = {
-            "auth": "auth_manifests.yaml",
-            "crds": "crds_manifests.yaml",
-        }
         self._context = {"namespace": self._namespace, "app_name": self._name}
+
+        self._k8s_resource_handler = None
+        self._crd_resource_handler = None
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
+        self.framework.observe(self.on.upgrade_charm, self.main)
+        self.framework.observe(self.on.config_changed, self.main)
+        self.framework.observe(self.on.leader_elected, self.main)
+        self.framework.observe(self.on.training_operator_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.install, self._on_install)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(
-            self.on.training_operator_pebble_ready,
-            self._on_training_operator_pebble_ready,
-        )
+        self.framework.observe(self.on.remove, self._on_remove)
+
+    @property
+    def container(self):
+        """Return container."""
+        return self._container
+
+    @property
+    def k8s_resource_handler(self):
+        """Update K8S with K8S resources."""
+        if not self._k8s_resource_handler:
+            self._k8s_resource_handler = KubernetesResourceHandler(
+                field_manager=self._lightkube_field_manager,
+                template_files=K8S_RESOURCE_FILES,
+                context=self._context,
+                logger=self.logger,
+            )
+        load_in_cluster_generic_resources(self._k8s_resource_handler.lightkube_client)
+        return self._k8s_resource_handler
+
+    @k8s_resource_handler.setter
+    def k8s_resource_handler(self, handler: KubernetesResourceHandler):
+        self._k8s_resource_handler = handler
+
+    @property
+    def crd_resource_handler(self):
+        """Update K8S with CRD resources."""
+        if not self._crd_resource_handler:
+            self._crd_resource_handler = KubernetesResourceHandler(
+                field_manager=self._lightkube_field_manager,
+                template_files=CRD_RESOURCE_FILES,
+                context=self._context,
+                logger=self.logger,
+            )
+        load_in_cluster_generic_resources(self._crd_resource_handler.lightkube_client)
+        return self._crd_resource_handler
+
+    @crd_resource_handler.setter
+    def crd_resource_handler(self, handler: KubernetesResourceHandler):
+        self._crd_resource_handler = handler
 
     @property
     def _training_operator_layer(self) -> Layer:
@@ -68,7 +114,7 @@ class TrainingOperatorCharm(CharmBase):
             "summary": "training-operator layer",
             "description": "pebble config layer for training-operator",
             "services": {
-                self._manager_service: {
+                self._container_name: {
                     "override": "replace",
                     "summary": "entrypoint of the training-operator image",
                     # /manager is the entrypoint on Kubeflow's training-operator image
@@ -83,119 +129,78 @@ class TrainingOperatorCharm(CharmBase):
         }
         return Layer(layer_config)
 
-    def _update_layer(self) -> None:
-        """Updates the Pebble configuration layer if changed."""
-        if not self._container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting for pod startup to complete")
-            return
+    def _check_container_connection(self):
+        """Check if connection can be made with container."""
+        if not self.container.can_connect():
+            raise ErrorWithStatus("Pod startup is not complete", MaintenanceStatus)
 
-        # Get current config
-        current_layer = self._container.get_plan()
-        # Create a new config layer
+    def _check_leader(self):
+        """Check if this unit is a leader."""
+        if not self.unit.is_leader():
+            self.logger.info("Not a leader, skipping setup")
+            raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
+
+    def _deploy_k8s_resources(self) -> None:
+        """Deploys K8S resources."""
+        try:
+            self.unit.status = MaintenanceStatus("Creating K8S resources")
+            self.k8s_resource_handler.apply()
+            self.crd_resource_handler.apply()
+        except ApiError:
+            raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+        self.model.unit.status = MaintenanceStatus("K8S resources created")
+
+    def _update_layer(self) -> None:
+        """Update the Pebble configuration layer (if changed)."""
+        current_layer = self.container.get_plan()
         new_layer = self._training_operator_layer
         if current_layer.services != new_layer.services:
-            self._container.add_layer(self._manager_service, new_layer, combine=True)
-            logging.info("Pebble plan updated with new configuration")
-        self._container.restart(self._manager_service)
+            self.unit.status = MaintenanceStatus("Applying new pebble layer")
+            self.container.add_layer(self._container_name, new_layer, combine=True)
+            try:
+                self.logger.info("Pebble plan updated with new configuration, replaning")
+                self.container.replan()
+            except ChangeError:
+                raise ErrorWithStatus("Failed to replan", BlockedStatus)
 
-    def _create_resource(self, resource_type: str, context: dict = None) -> None:
-        """Helper method to create Kubernetes resources."""
-        client = Client()
-        with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
-            for obj in codecs.load_all_yaml(f, context=context):
-                client.create(obj)
-
-    def _patch_resource(self, resource_type: str, context: dict = None) -> None:
-        """Helper method to patch Kubernetes resources."""
-        client = Client()
-        with open(Path(self._src_dir) / self._resource_files[resource_type]) as f:
-            for obj in codecs.load_all_yaml(f, context=context):
-                client.patch(type(obj), obj.metadata.name, obj, patch_type=PatchType.MERGE)
-
-    def _create_crds(self) -> None:
-        """Creates training-jobs CRDs.
-
-        Raises:
-            ApiError: if creating any of the CRDs fails.
-        """
+    def main(self, _) -> None:
+        """Perform all required actions the Charm."""
         try:
-            self._create_resource(resource_type="crds")
-        except ApiError as e:
-            if e.status.reason == "AlreadyExists":
-                logging.info(
-                    f"{e.status.details.name} CRD already present. It will be used by the operator."
-                )
-            else:
-                raise
+            self._check_container_connection()
+            self._check_leader()
+            self._deploy_k8s_resources()
+            self._update_layer()
+        except ErrorWithStatus as error:
+            self.model.unit.status = error.status
+            return
 
-    def _create_auth_resources(self) -> None:
-        """Creates auth resources.
+        self.model.unit.status = ActiveStatus()
 
-        Raises:
-            ApiError: if creating any of the resources fails.
-        """
-        try:
-            self._create_resource(resource_type="auth", context=self._context)
-        except ApiError as e:
-            if e.status.reason == "AlreadyExists":
-                logging.info(
-                    f"{e.status.details.name} auth resource already present. It will be reused."
-                )
-            else:
-                raise
-
-    def _on_install(self, event):
-        """Event handler for InstallEvent."""
-
-        # Update Pebble configuration layer if it has changed
-        self._update_layer()
-
-        # Patch/create Kubernetes resources
-        try:
-            self.unit.status = MaintenanceStatus("Creating auth resources")
-            self._create_auth_resources()
-            self.unit.status = MaintenanceStatus("Creating CRDs")
-            self._create_crds()
-        except ApiError as e:
-            logging.error(traceback.format_exc())
-            self.unit.status = BlockedStatus(
-                f"Creating/patching resources failed with code {str(e.status.code)}."
+    def _on_pebble_ready(self, _):
+        """Configure started container."""
+        if not self.container.can_connect():
+            raise ErrorWithStatus(
+                f"Container {self._container_name} failed to start", BlockedStatus
             )
-            if e.status.code == 403:
-                logging.error(
-                    "Received Forbidden (403) error when creating auth resources."
-                    "This may be due to the charm lacking permissions to create"
-                    "cluster-scoped resources."
-                    "Charm must be deployed with --trust"
-                )
-                event.defer()
-                return
-        else:
-            self.unit.status = ActiveStatus()
+        self.main(_)
 
-    def _on_config_changed(self, _):
-        """Event handler for ConfigChangedEvent"""
+    def _on_install(self, _):
+        """Perform installation only actions."""
+        self._check_container_connection()
+        self._on_pebble_ready(_)
 
-        # Update Pebble configuration layer if it has changed
-        self._update_layer()
-
-        # Patch/create Kubernetes resources
+    def _on_remove(self, _):
+        """Remove all resources."""
+        self.unit.status = MaintenanceStatus("Removing K8S resources")
+        k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
+        crd_resources_manifests = self.crd_resource_handler.render_manifests()
         try:
-            self.unit.status = MaintenanceStatus("Patching auth resources")
-            self._patch_resource(resource_type="auth", context=self._context)
-            self.unit.status = MaintenanceStatus("Patching CRDs")
-            self._patch_resource(resource_type="crds")
+            delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
+            delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as e:
-            logging.error(traceback.format_exc())
-            self.unit.status = BlockedStatus(
-                f"Patching resources failed with code {str(e.status.code)}."
-            )
-        else:
-            self.unit.status = ActiveStatus()
-
-    def _on_training_operator_pebble_ready(self, _):
-        """Event handler for on PebbleReadyEvent"""
-        self._update_layer()
+            self.logger.warning(f"Failed to delete K8S resources, with error: {e}")
+            raise e
+        self.unit.status = MaintenanceStatus("K8S resources removed")
 
 
 if __name__ == "__main__":
