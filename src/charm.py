@@ -180,10 +180,7 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Configure started container."""
-        if not self.container.can_connect():
-            raise ErrorWithStatus(
-                f"Container {self._container_name} failed to start", BlockedStatus
-            )
+        self._check_container_connection()
         self.main(_)
 
     def _on_install(self, _):
