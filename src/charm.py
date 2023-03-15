@@ -14,7 +14,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
@@ -146,8 +146,9 @@ class TrainingOperatorCharm(CharmBase):
             self.unit.status = MaintenanceStatus("Creating K8S resources")
             self.k8s_resource_handler.apply()
             self.crd_resource_handler.apply()
-        except ApiError:
-            raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+        except ApiError as e:
+            self.logger.exception(f"Failed to create K8S resources, with error: {e}")
+            raise e
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -160,8 +161,9 @@ class TrainingOperatorCharm(CharmBase):
             try:
                 self.logger.info("Pebble plan updated with new configuration, replaning")
                 self.container.replan()
-            except ChangeError:
-                raise ErrorWithStatus("Failed to replan", BlockedStatus)
+            except ChangeError as e:
+                self.logger.exception(f"Failed to replan, with error: {e}")
+                raise e
 
     def main(self, _) -> None:
         """Perform all required actions the Charm."""
