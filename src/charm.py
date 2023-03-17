@@ -5,7 +5,7 @@
 
 import logging
 
-from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, ErrorStatusWithMessage
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
@@ -147,7 +147,7 @@ class TrainingOperatorCharm(CharmBase):
             self.k8s_resource_handler.apply()
             self.crd_resource_handler.apply()
         except ApiError as e:
-            raise ApiError("Failed to create K8S resources") from e
+            raise ErrorStatusWithMessage("Failed to create K8S resources")
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -161,7 +161,7 @@ class TrainingOperatorCharm(CharmBase):
                 self.logger.info("Pebble plan updated with new configuration, replaning")
                 self.container.replan()
             except ChangeError as e:
-                raise ChangeError("Failed to replan") from e
+                raise ErrorStatusWithMessage("Failed to replan") from e
 
     def main(self, _) -> None:
         """Perform all required actions the Charm."""
