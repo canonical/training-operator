@@ -66,7 +66,6 @@ def lightkube_create_global_resources() -> dict:
 JOBS_CLASSES = lightkube_create_global_resources()
 
 
-@pytest.mark.skip(reason="IC: testing upgrade")
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
 def test_create_training_jobs(ops_test: OpsTest, example: str):
     """Validates that a training job can be created and is running.
@@ -128,7 +127,6 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     assert_job_status_running_success()
 
 
-@pytest.mark.skip(reason="IC: testing upgrade")
 async def test_prometheus_grafana_integration(ops_test: OpsTest):
     """Deploy prometheus, grafana and required relations, then test the metrics."""
     prometheus = "prometheus-k8s"
@@ -189,8 +187,12 @@ retry_for_5_attempts = tenacity.Retrying(
 async def test_remove_and_upgrade(ops_test: OpsTest):
     """Test remove and upgrade.
 
-    This test should be last in the suite, because it removes deployed charm."""
-
+    This test should be last in the suite, because it removes deployed charm.
+    First, remove is tested by removing previously deployed charm and verifying that resources are
+    also removed.
+    Second, a stable version of charm is deployed and refresh (upgrade) is performed and resources
+    are verified for correct versions.
+    """
     # remove deployed charm and verify that it is removed
     await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
     assert APP_NAME not in ops_test.model.applications
@@ -235,15 +237,16 @@ async def test_remove_and_upgrade(ops_test: OpsTest):
     _last = object()
     assert not next(crd_list, _last) is _last
 
-    # check that all CRDs are installed and version are correct
+    # check that all CRDs are installed and versions are correct
     test_crd_list = []
     for crd in yaml.safe_load_all(Path("./src/templates/crds_manifests.yaml.j2").read_text()):
         test_crd_list.append(
-            crd["metadata"]["name"],
-            crd["metadata"]["annotations"]["controller-gen.kubebuilder.io/version"],
+            (
+                crd["metadata"]["name"],
+                crd["metadata"]["annotations"]["controller-gen.kubebuilder.io/version"],
+            )
         )
     for crd in crd_list:
         assert (
-            crd["metadata"]["name"],
-            crd["metadata"]["annotations"]["controller-gen.kubebuilder.io/version"],
+            (crd.metadata.name, crd.metadata.annotations["controller-gen.kubebuilder.io/version"])
         ) in test_crd_list

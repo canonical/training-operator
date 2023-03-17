@@ -8,6 +8,7 @@ import logging
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
+from charmed_kubeflow_chisme.pebble import update_layer
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
@@ -15,7 +16,7 @@ from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
-from ops.pebble import ChangeError, Layer
+from ops.pebble import Layer
 
 K8S_RESOURCE_FILES = [
     "src/templates/auth_manifests.yaml.j2",
@@ -60,9 +61,9 @@ class TrainingOperatorCharm(CharmBase):
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
-        self.framework.observe(self.on.upgrade_charm, self.main)
-        self.framework.observe(self.on.config_changed, self.main)
-        self.framework.observe(self.on.leader_elected, self.main)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
+        self.framework.observe(self.on.config_changed, self._on_event)
+        self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.training_operator_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -140,36 +141,35 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _deploy_k8s_resources(self) -> None:
-        """Deploys K8S resources."""
+    def _deploy_k8s_resources(self, force: bool = False) -> None:
+        """Deploys K8S resources.
+
+        Args:
+            force (bool): *(optional)* Will "force" apply requests causing conflicting fields to
+                          change ownership to the field manager used in this charm.
+        """
         try:
             self.unit.status = MaintenanceStatus("Creating K8S resources")
-            self.k8s_resource_handler.apply()
-            self.crd_resource_handler.apply()
+            # apply CRDs first
+            self.crd_resource_handler.apply(force=force)
+            self.k8s_resource_handler.apply(force=force)
         except ApiError:
             raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    def _update_layer(self) -> None:
-        """Update the Pebble configuration layer (if changed)."""
-        current_layer = self.container.get_plan()
-        new_layer = self._training_operator_layer
-        if current_layer.services != new_layer.services:
-            self.unit.status = MaintenanceStatus("Applying new pebble layer")
-            self.container.add_layer(self._container_name, new_layer, combine=True)
-            try:
-                self.logger.info("Pebble plan updated with new configuration, replaning")
-                self.container.replan()
-            except ChangeError:
-                raise ErrorWithStatus("Failed to replan", BlockedStatus)
+    def _on_event(self, _, force_k8s_update: bool = False) -> None:
+        """Perform all required actions the Charm.
 
-    def main(self, _) -> None:
-        """Perform all required actions the Charm."""
+        Args:
+            force_k8s_update (bool): Should be used when deploying K8S resources.
+        """
         try:
             self._check_container_connection()
             self._check_leader()
-            self._deploy_k8s_resources()
-            self._update_layer()
+            self._deploy_k8s_resources(force=force_k8s_update)
+            update_layer(
+                self._container_name, self._container, self._training_operator_layer, self.logger
+            )
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
@@ -182,12 +182,17 @@ class TrainingOperatorCharm(CharmBase):
             raise ErrorWithStatus(
                 f"Container {self._container_name} failed to start", BlockedStatus
             )
-        self.main(_)
+        self._on_event(_)
 
     def _on_install(self, _):
         """Perform installation only actions."""
-        self._check_container_connection()
-        self._on_pebble_ready(_)
+        # deploy K8S resources to speed up deployment
+        self._deploy_k8s_resources()
+
+    def _on_upgrade(self, _):
+        """Perform upgrade steps."""
+        # force conflict resolution in K8S resources update
+        self._on_event(_, force_k8s_update=True)
 
     def _on_remove(self, _):
         """Remove all resources."""
@@ -195,8 +200,9 @@ class TrainingOperatorCharm(CharmBase):
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
         try:
-            delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
+            # remove CRDs last
+            delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
         except ApiError as e:
             self.logger.warning(f"Failed to delete K8S resources, with error: {e}")
             raise e
