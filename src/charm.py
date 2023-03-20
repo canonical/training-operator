@@ -151,8 +151,8 @@ class TrainingOperatorCharm(CharmBase):
         try:
             self.unit.status = MaintenanceStatus("Creating K8S resources")
             # apply CRDs first
-            self.crd_resource_handler.apply(force_conflicts=force_conflicts)
-            self.k8s_resource_handler.apply(force_conflicts=force_conflicts)
+            self.crd_resource_handler.apply(force=force_conflicts)
+            self.k8s_resource_handler.apply(force=force_conflicts)
         except ApiError:
             raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
         self.model.unit.status = MaintenanceStatus("K8S resources created")
