@@ -131,6 +131,10 @@ class TrainingOperatorCharm(CharmBase):
 
     def _check_container_connection(self):
         """Check if connection can be made with container."""
+        # FIXME: if the container is unreachable, setting the unit
+        # to MaintenanceStatus won't have any effect in the execution
+        # which may cause issues if there is an attempt of starting
+        # the workload service or updating the pebble layer (which replans)
         if not self.container.can_connect():
             raise ErrorWithStatus("Pod startup is not complete", MaintenanceStatus)
 
