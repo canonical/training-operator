@@ -140,18 +140,19 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _apply_k8s_resources(self, force: bool = False) -> None:
+    def _apply_k8s_resources(self, force_conflicts: bool = False) -> None:
         """Applies K8S resources.
 
         Args:
-            force (bool): *(optional)* Will "force" apply requests causing conflicting fields to
-                          change ownership to the field manager used in this charm.
+            force_conflicts (bool): *(optional)* Will "force" apply requests causing conflicting
+                                    fields to change ownership to the field manager used in this
+                                    charm.
         """
         try:
             self.unit.status = MaintenanceStatus("Creating K8S resources")
             # apply CRDs first
-            self.crd_resource_handler.apply(force=force)
-            self.k8s_resource_handler.apply(force=force)
+            self.crd_resource_handler.apply(force_conflicts=force_conflicts)
+            self.k8s_resource_handler.apply(force_conflicts=force_conflicts)
         except ApiError:
             raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
         self.model.unit.status = MaintenanceStatus("K8S resources created")
@@ -169,16 +170,16 @@ class TrainingOperatorCharm(CharmBase):
             except ChangeError:
                 raise ErrorWithStatus("Failed to replan", BlockedStatus)
 
-    def _on_event(self, _, force_k8s_update: bool = False) -> None:
+    def _on_event(self, _, force_conflicts: bool = False) -> None:
         """Perform all required actions the Charm.
 
         Args:
-            force_k8s_update (bool): Should be used when deploying K8S resources.
+            force_conflicts (bool): Should be used when deploying K8S resources.
         """
         try:
             self._check_container_connection()
             self._check_leader()
-            self._apply_k8s_resources(force=force_k8s_update)
+            self._apply_k8s_resources(force_conflicts=force_conflicts)
             self._update_layer()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
@@ -202,7 +203,7 @@ class TrainingOperatorCharm(CharmBase):
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
         # force conflict resolution in K8S resources update
-        self._on_event(_, force_k8s_update=True)
+        self._on_event(_, force_conflicts=True)
 
     def _on_remove(self, _):
         """Remove all resources."""
