@@ -8,7 +8,6 @@ import logging
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
-from charmed_kubeflow_chisme.pebble import update_layer
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
@@ -16,7 +15,7 @@ from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
-from ops.pebble import Layer
+from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
     "src/templates/auth_manifests.yaml.j2",
@@ -141,8 +140,8 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _deploy_k8s_resources(self, force: bool = False) -> None:
-        """Deploys K8S resources.
+    def _apply_k8s_resources(self, force: bool = False) -> None:
+        """Applies K8S resources.
 
         Args:
             force (bool): *(optional)* Will "force" apply requests causing conflicting fields to
@@ -157,6 +156,19 @@ class TrainingOperatorCharm(CharmBase):
             raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
+    def _update_layer(self) -> None:
+        """Update the Pebble configuration layer (if changed)."""
+        current_layer = self.container.get_plan()
+        new_layer = self._training_operator_layer
+        if current_layer.services != new_layer.services:
+            self.unit.status = MaintenanceStatus("Applying new pebble layer")
+            self.container.add_layer(self._container_name, new_layer, combine=True)
+            try:
+                self.logger.info("Pebble plan updated with new configuration, replaning")
+                self.container.replan()
+            except ChangeError:
+                raise ErrorWithStatus("Failed to replan", BlockedStatus)
+
     def _on_event(self, _, force_k8s_update: bool = False) -> None:
         """Perform all required actions the Charm.
 
@@ -166,10 +178,8 @@ class TrainingOperatorCharm(CharmBase):
         try:
             self._check_container_connection()
             self._check_leader()
-            self._deploy_k8s_resources(force=force_k8s_update)
-            update_layer(
-                self._container_name, self._container, self._training_operator_layer, self.logger
-            )
+            self._apply_k8s_resources(force=force_k8s_update)
+            self._update_layer()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
@@ -186,8 +196,8 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_install(self, _):
         """Perform installation only actions."""
-        # deploy K8S resources to speed up deployment
-        self._deploy_k8s_resources()
+        # apply K8S resources to speed up deployment
+        self._apply_k8s_resources()
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
