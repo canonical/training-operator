@@ -150,7 +150,6 @@ class TrainingOperatorCharm(CharmBase):
         """
         try:
             self.unit.status = MaintenanceStatus("Creating K8S resources")
-            # apply CRDs first
             self.crd_resource_handler.apply(force=force_conflicts)
             self.k8s_resource_handler.apply(force=force_conflicts)
         except ApiError:
@@ -174,7 +173,8 @@ class TrainingOperatorCharm(CharmBase):
         """Perform all required actions the Charm.
 
         Args:
-            force_conflicts (bool): Should be used when deploying K8S resources.
+            force_conflicts (bool): Should only be used when need to resolved conflicts on K8S
+                                    resources.
         """
         try:
             self._check_container_connection()
@@ -211,9 +211,8 @@ class TrainingOperatorCharm(CharmBase):
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
         try:
-            delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
-            # remove CRDs last
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
+            delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as e:
             self.logger.warning(f"Failed to delete K8S resources, with error: {e}")
             raise e
