@@ -54,6 +54,8 @@ ruamel-yaml==0.17.21
     # via charmed-kubeflow-chisme
 ruamel-yaml-clib==0.2.7
     # via ruamel-yaml
+six==1.16.0
+    # via jsonschema
 sniffio==1.3.0
     # via
     #   anyio
