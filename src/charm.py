@@ -14,7 +14,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
