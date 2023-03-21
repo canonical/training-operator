@@ -67,7 +67,6 @@ def lightkube_create_global_resources() -> dict:
 JOBS_CLASSES = lightkube_create_global_resources()
 
 
-@pytest.mark.skip(reason="IC: skipping due to remove/update dev")
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
 def test_create_training_jobs(ops_test: OpsTest, example: str):
     """Validates that a training job can be created and is running.
@@ -129,7 +128,6 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     assert_job_status_running_success()
 
 
-@pytest.mark.skip(reason="IC: skipping due to remove/update dev")
 async def test_prometheus_grafana_integration(ops_test: OpsTest):
     """Deploy prometheus, grafana and required relations, then test the metrics."""
     prometheus = "prometheus-k8s"
