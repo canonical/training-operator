@@ -140,6 +140,19 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
+    def _check_and_report_k8s_conflict(self, error):
+        """Check for conflict and report it.
+
+        Returns:
+          True if error status code is 409 (conflict).
+          False otherwise.
+        """
+        if error.status.code == 409:
+            self.unit.status = MaintenanceStatus("Force applying K8S resources")
+            self.logger.warning(f"{str(error)}")
+            return True
+        return False
+
     def _apply_k8s_resources(self, force_conflicts: bool = False) -> None:
         """Applies K8S resources.
 
@@ -147,13 +160,28 @@ class TrainingOperatorCharm(CharmBase):
             force_conflicts (bool): *(optional)* Will "force" apply requests causing conflicting
                                     fields to change ownership to the field manager used in this
                                     charm.
+                                    NOTE: This will only be used if initial regular apply() fails.
         """
+        self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
-            self.unit.status = MaintenanceStatus("Creating K8S resources")
-            self.crd_resource_handler.apply(force=force_conflicts)
-            self.k8s_resource_handler.apply(force=force_conflicts)
-        except ApiError:
-            raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+            self.k8s_resource_handler.apply()
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying K8S resources
+                # re-apply K8S resources with forced conflict resolution
+                self.k8s_resource_handler.apply(force=force_conflicts)
+            else:
+                raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+        try:
+            self.crd_resource_handler.apply()
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying K8S resources
+                # re-apply K8S resources with forced conflict resolution
+                self.crd_resource_handler.apply(force=force_conflicts)
+            else:
+                raise ErrorWithStatus("CRD resources creation failed", BlockedStatus)
+
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -213,9 +241,11 @@ class TrainingOperatorCharm(CharmBase):
         try:
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
-        except ApiError as e:
-            self.logger.warning(f"Failed to delete K8S resources, with error: {e}")
-            raise e
+        except ApiError as error:
+            # do not log/report when resources were not found
+            if error.status.code != 404:
+                self.logger.error(f"Failed to delete K8S resources, with error: {error}")
+                raise error
         self.unit.status = MaintenanceStatus("K8S resources removed")
 
 
