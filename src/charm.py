@@ -5,7 +5,7 @@
 
 import logging
 
-from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
@@ -14,7 +14,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
@@ -150,10 +150,10 @@ class TrainingOperatorCharm(CharmBase):
         """
         try:
             self.unit.status = MaintenanceStatus("Creating K8S resources")
-            self.crd_resource_handler.apply(force=force_conflicts)
-            self.k8s_resource_handler.apply(force=force_conflicts)
-        except ApiError:
-            raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+            self.k8s_resource_handler.apply()
+            self.crd_resource_handler.apply()
+        except ApiError as e:
+            raise GenericCharmRuntimeError("Failed to create K8S resources") from e
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -166,8 +166,8 @@ class TrainingOperatorCharm(CharmBase):
             try:
                 self.logger.info("Pebble plan updated with new configuration, replaning")
                 self.container.replan()
-            except ChangeError:
-                raise ErrorWithStatus("Failed to replan", BlockedStatus)
+            except ChangeError as e:
+                raise GenericCharmRuntimeError("Failed to replan") from e
 
     def _on_event(self, _, force_conflicts: bool = False) -> None:
         """Perform all required actions the Charm.
@@ -189,10 +189,6 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Configure started container."""
-        if not self.container.can_connect():
-            raise ErrorWithStatus(
-                f"Container {self._container_name} failed to start", BlockedStatus
-            )
         self._on_event(_)
 
     def _on_install(self, _):
