@@ -51,7 +51,14 @@ def harness() -> Harness:
 class TestCharm:
     """Test class for TrainingOperatorCharm."""
 
-    def test_not_leader(self, harness: Harness):
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    def test_not_leader(
+        self,
+        _: MagicMock,  # k8s_resource_handler
+        ___: MagicMock,  # crd_resource_handler
+        harness: Harness,
+    ):
         """Test not a leader scenario."""
         harness.begin_with_initial_hooks()
         harness.container_pebble_ready("training-operator")
@@ -104,7 +111,7 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
-    def test_deploy_k8s_resources_success(
+    def test_apply_k8s_resources_success(
         self,
         k8s_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
@@ -112,7 +119,7 @@ class TestCharm:
     ):
         """Test if K8S resource handler is executed as expected."""
         harness.begin()
-        harness.charm._deploy_k8s_resources()
+        harness.charm._apply_k8s_resources()
         crd_resource_handler.apply.assert_called()
         k8s_resource_handler.apply.assert_called()
         assert isinstance(harness.charm.model.unit.status, MaintenanceStatus)
