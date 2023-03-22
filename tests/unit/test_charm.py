@@ -4,6 +4,7 @@
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from charmed_kubeflow_chisme.exceptions import GenericCharmRuntimeError
 from lightkube.core.exceptions import ApiError
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
@@ -195,5 +196,5 @@ class TestCharm:
     ):
         delete_many.side_effect = _FakeApiError()
         harness.begin()
-        with pytest.raises(ApiError):
+        with pytest.raises(GenericCharmRuntimeError):
             harness.charm.on.remove.emit()

@@ -14,7 +14,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
@@ -169,18 +169,20 @@ class TrainingOperatorCharm(CharmBase):
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
                 # conflict detected when applying K8S resources
                 # re-apply K8S resources with forced conflict resolution
+                self.logger.warning("Applying K8S resources with conflict resolution")
                 self.k8s_resource_handler.apply(force=force_conflicts)
             else:
-                raise ErrorWithStatus("K8S resources creation failed", BlockedStatus)
+                raise GenericCharmRuntimeError("K8S resources creation failed") from error
         try:
             self.crd_resource_handler.apply()
         except ApiError as error:
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
                 # conflict detected when applying K8S resources
                 # re-apply K8S resources with forced conflict resolution
+                self.logger.warning("Applying CRD resources with conflict resolution")
                 self.crd_resource_handler.apply(force=force_conflicts)
             else:
-                raise ErrorWithStatus("CRD resources creation failed", BlockedStatus)
+                raise GenericCharmRuntimeError("CRD resources creation failed") from error
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -239,8 +241,7 @@ class TrainingOperatorCharm(CharmBase):
         except ApiError as error:
             # do not log/report when resources were not found
             if error.status.code != 404:
-                self.logger.error(f"Failed to delete K8S resources, with error: {error}")
-                raise error
+                raise GenericCharmRuntimeError("Failed to delete K8S resources") from error
         self.unit.status = MaintenanceStatus("K8S resources removed")
 
 
