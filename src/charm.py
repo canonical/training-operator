@@ -141,15 +141,9 @@ class TrainingOperatorCharm(CharmBase):
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
     def _check_and_report_k8s_conflict(self, error):
-        """Check for conflict and report it.
-
-        Returns:
-          True if error status code is 409 (conflict).
-          False otherwise.
-        """
+        """Returns True if error status code is 409 (conflict), False otherwise."""
         if error.status.code == 409:
-            self.unit.status = MaintenanceStatus("Force applying K8S resources")
-            self.logger.warning(f"{str(error)}")
+            self.logger.warning(f"Encountered a conflict: {str(error)}")
             return True
         return False
 
@@ -169,6 +163,7 @@ class TrainingOperatorCharm(CharmBase):
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
                 # conflict detected when applying K8S resources
                 # re-apply K8S resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying K8S resources")
                 self.logger.warning("Applying K8S resources with conflict resolution")
                 self.k8s_resource_handler.apply(force=force_conflicts)
             else:
@@ -177,8 +172,9 @@ class TrainingOperatorCharm(CharmBase):
             self.crd_resource_handler.apply()
         except ApiError as error:
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying K8S resources
-                # re-apply K8S resources with forced conflict resolution
+                # conflict detected when applying CRD resources
+                # re-apply CRD resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying CRD resources")
                 self.logger.warning("Applying CRD resources with conflict resolution")
                 self.crd_resource_handler.apply(force=force_conflicts)
             else:
