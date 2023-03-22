@@ -60,9 +60,9 @@ class TrainingOperatorCharm(CharmBase):
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
-        self.framework.observe(self.on.upgrade_charm, self.main)
-        self.framework.observe(self.on.config_changed, self.main)
-        self.framework.observe(self.on.leader_elected, self.main)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
+        self.framework.observe(self.on.config_changed, self._on_event)
+        self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.training_operator_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -140,14 +140,45 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _deploy_k8s_resources(self) -> None:
-        """Deploys K8S resources."""
+    def _check_and_report_k8s_conflict(self, error):
+        """Returns True if error status code is 409 (conflict), False otherwise."""
+        if error.status.code == 409:
+            self.logger.warning(f"Encountered a conflict: {str(error)}")
+            return True
+        return False
+
+    def _apply_k8s_resources(self, force_conflicts: bool = False) -> None:
+        """Applies K8S resources.
+
+        Args:
+            force_conflicts (bool): *(optional)* Will "force" apply requests causing conflicting
+                                    fields to change ownership to the field manager used in this
+                                    charm.
+                                    NOTE: This will only be used if initial regular apply() fails.
+        """
+        self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
-            self.unit.status = MaintenanceStatus("Creating K8S resources")
             self.k8s_resource_handler.apply()
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying K8S resources
+                # re-apply K8S resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying K8S resources")
+                self.logger.warning("Applying K8S resources with conflict resolution")
+                self.k8s_resource_handler.apply(force=force_conflicts)
+            else:
+                raise GenericCharmRuntimeError("K8S resources creation failed") from error
+        try:
             self.crd_resource_handler.apply()
-        except ApiError as e:
-            raise GenericCharmRuntimeError("Failed to create K8S resources") from e
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying CRD resources
+                # re-apply CRD resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying CRD resources")
+                self.logger.warning("Applying CRD resources with conflict resolution")
+                self.crd_resource_handler.apply(force=force_conflicts)
+            else:
+                raise GenericCharmRuntimeError("CRD resources creation failed") from error
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     def _update_layer(self) -> None:
@@ -163,12 +194,17 @@ class TrainingOperatorCharm(CharmBase):
             except ChangeError as e:
                 raise GenericCharmRuntimeError("Failed to replan") from e
 
-    def main(self, _) -> None:
-        """Perform all required actions the Charm."""
+    def _on_event(self, _, force_conflicts: bool = False) -> None:
+        """Perform all required actions the Charm.
+
+        Args:
+            force_conflicts (bool): Should only be used when need to resolved conflicts on K8S
+                                    resources.
+        """
         try:
             self._check_container_connection()
             self._check_leader()
-            self._deploy_k8s_resources()
+            self._apply_k8s_resources(force_conflicts=force_conflicts)
             self._update_layer()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
@@ -178,12 +214,17 @@ class TrainingOperatorCharm(CharmBase):
 
     def _on_pebble_ready(self, _):
         """Configure started container."""
-        self.main(_)
+        self._on_event(_)
 
     def _on_install(self, _):
         """Perform installation only actions."""
-        self._check_container_connection()
-        self._on_pebble_ready(_)
+        # apply K8S resources to speed up deployment
+        self._apply_k8s_resources()
+
+    def _on_upgrade(self, _):
+        """Perform upgrade steps."""
+        # force conflict resolution in K8S resources update
+        self._on_event(_, force_conflicts=True)
 
     def _on_remove(self, _):
         """Remove all resources."""
@@ -193,9 +234,11 @@ class TrainingOperatorCharm(CharmBase):
         try:
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
-        except ApiError as e:
-            self.logger.warning(f"Failed to delete K8S resources, with error: {e}")
-            raise e
+        except ApiError as error:
+            # do not log/report when resources were not found
+            if error.status.code != 404:
+                self.logger.error(f"Failed to delete K8S resources, with error: {error}")
+                raise error
         self.unit.status = MaintenanceStatus("K8S resources removed")
 
 
