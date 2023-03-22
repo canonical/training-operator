@@ -241,7 +241,8 @@ class TrainingOperatorCharm(CharmBase):
         except ApiError as error:
             # do not log/report when resources were not found
             if error.status.code != 404:
-                raise GenericCharmRuntimeError("Failed to delete K8S resources") from error
+                self.logger.error(f"Failed to delete K8S resources, with error: {error}")
+                raise error
         self.unit.status = MaintenanceStatus("K8S resources removed")
 
 
