@@ -1,6 +1,6 @@
 # Training Operator
 
-[![CharmHub Badge](https://charmhub.io/training-operator/badge.svg)](https://charmhub.io/training-operator?channel=1.6/stable)
+[![CharmHub Badge](https://charmhub.io/training-operator/badge.svg?channel=1.6/stable)](https://charmhub.io/training-operator?channel=1.6/stable)
 
 ## Overview
 
