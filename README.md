@@ -1,5 +1,7 @@
 # Training Operator
 
+[![CharmHub Badge](https://charmhub.io/training-operator/badge.svg)](https://charmhub.io/training-operator?channel=1.6/stable)
+
 ## Overview
 
 This repository hosts the Kubernetes Training Operator for Kubeflow training jobs.
