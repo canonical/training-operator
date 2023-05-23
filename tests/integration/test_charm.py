@@ -13,12 +13,15 @@ import pytest
 import requests
 import tenacity
 import yaml
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
+CHARM_LOCATION = None
 
 
 @pytest.mark.abort_on_fail
@@ -38,6 +41,10 @@ async def test_build_and_deploy(ops_test: OpsTest):
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
     assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
+
+    # store charm location in global to be used in other tests
+    global CHARM_LOCATION
+    CHARM_LOCATION = charm_under_test
 
 
 def lightkube_create_global_resources() -> dict:
@@ -175,3 +182,121 @@ retry_for_5_attempts = tenacity.Retrying(
     wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
     reraise=True,
 )
+
+
+@pytest.mark.abort_on_fail
+async def test_remove_with_resources_present(ops_test: OpsTest):
+    """Test remove with all resources deployed.
+
+    Verify that all deployed resources that need to be removed are removed.
+
+    This test should be next before before test_upgrade(), because it removes deployed charm.
+    """
+    # remove deployed charm and verify that it is removed
+    await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
+    assert APP_NAME not in ops_test.model.applications
+
+    # verify that all resources that were deployed are removed
+    lightkube_client = lightkube.Client()
+    crd_list = lightkube_client.list(
+        CustomResourceDefinition,
+        labels=[("app.juju.is/created-by", "training-operator")],
+        namespace=ops_test.model.name,
+    )
+    # testing for empty list (iterator)
+    _last = object()
+    assert next(crd_list, _last) is _last
+
+
+@pytest.mark.abort_on_fail
+async def test_upgrade(ops_test: OpsTest):
+    """Test upgrade.
+
+    Verify that all upgrade process succeeds.
+
+    There should be no charm with APP_NAME deployed (after test_remove_with_resources_present()),
+    because it deploys stable version of this charm and peforms upgrade.
+    """
+
+    # deploy stable version of the charm
+    await ops_test.model.deploy(entity_url=APP_NAME, channel="1.5/stable", trust=True)
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
+
+    # refresh (upgrade) using charm built in test_build_and_deploy()
+    # NOTE: using ops_test.juju() because there is no functionality to refresh in ops_test
+    image_path = METADATA["resources"]["training-operator-image"]["upstream-source"]
+    await ops_test.juju(
+        "refresh",
+        APP_NAME,
+        f"--path={CHARM_LOCATION}",
+        f'--resource="training-operator-image={image_path}"',
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
+
+    # verify that all CRDs are installed
+    lightkube_client = lightkube.Client()
+    crd_list = lightkube_client.list(
+        CustomResourceDefinition,
+        labels=[("app.juju.is/created-by", "training-operator")],
+        namespace=ops_test.model.name,
+    )
+    # testing for non empty list (iterator)
+    _last = object()
+    assert not next(crd_list, _last) is _last
+
+    # check that all CRDs are installed and versions are correct
+    test_crd_list = []
+    for crd in yaml.safe_load_all(Path("./src/templates/crds_manifests.yaml.j2").read_text()):
+        test_crd_list.append(
+            (
+                crd["metadata"]["name"],
+                crd["metadata"]["annotations"]["controller-gen.kubebuilder.io/version"],
+            )
+        )
+    for crd in crd_list:
+        assert (
+            (crd.metadata.name, crd.metadata.annotations["controller-gen.kubebuilder.io/version"])
+        ) in test_crd_list
+
+    # verify that if ClusterRole is installed and parameters are correct
+    cluster_role = lightkube_client.get(
+        ClusterRole,
+        name=f"{ops_test.model.name}-{APP_NAME}-charm",
+        namespace=ops_test.model.name,
+    )
+    for rule in cluster_role.rules:
+        if rule.apiGroups == "kubeflow.org":
+            assert "paddlejobs" in rule.resources
+
+
+@pytest.mark.abort_on_fail
+async def test_remove_without_resources(ops_test: OpsTest):
+    """Test remove when no resources are present.
+
+    Verify that application is removed and not stuck in error state.
+
+    This test should be last in the test suite after test_upgrade(), because it removes deployed
+    charm.
+    """
+
+    # remove all CRDs
+    lightkube_client = lightkube.Client()
+    crd_list = lightkube_client.list(
+        CustomResourceDefinition,
+        labels=[("app.juju.is/created-by", "training-operator")],
+        namespace=ops_test.model.name,
+    )
+    for crd in crd_list:
+        lightkube_client.delete(
+            CustomResourceDefinition,
+            name=crd.metadata.name,
+            namespace=ops_test.model.name,
+        )
+
+    # remove deployed charm and verify that it is removed successfully
+    await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
+    assert APP_NAME not in ops_test.model.applications
