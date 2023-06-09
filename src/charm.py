@@ -194,7 +194,11 @@ class TrainingOperatorCharm(CharmBase):
             except ChangeError as e:
                 raise GenericCharmRuntimeError("Failed to replan") from e
 
-    def _on_event(self, _, force_conflicts: bool = False) -> None:
+    # TODO: force_conflicts=True due to
+    #  https://github.com/canonical/training-operator/issues/104
+    #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
+    #  merges.
+    def _on_event(self, _, force_conflicts: bool = True) -> None:
         """Perform all required actions the Charm.
 
         Args:
@@ -219,11 +223,17 @@ class TrainingOperatorCharm(CharmBase):
     def _on_install(self, _):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
-        self._apply_k8s_resources()
+        # TODO: force_conflicts=True due to
+        #  https://github.com/canonical/training-operator/issues/104
+        #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
+        #  merges.
+        self._apply_k8s_resources(force_conflicts=True)
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
         # force conflict resolution in K8S resources update
+        #  TODO: Remove force_conflicts if
+        #   [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65) merges.
         self._on_event(_, force_conflicts=True)
 
     def _on_remove(self, _):
