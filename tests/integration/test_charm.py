@@ -201,7 +201,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
         labels=[("app.juju.is/created-by", "training-operator")],
-        namespace=ops_test.model.name,
+        namespace=ops_test.model_name,
     )
     # testing for empty list (iterator)
     _last = object()
@@ -242,7 +242,7 @@ async def test_upgrade(ops_test: OpsTest):
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
         labels=[("app.juju.is/created-by", "training-operator")],
-        namespace=ops_test.model.name,
+        namespace=ops_test.model_name,
     )
     # testing for non empty list (iterator)
     _last = object()
@@ -265,8 +265,8 @@ async def test_upgrade(ops_test: OpsTest):
     # verify that if ClusterRole is installed and parameters are correct
     cluster_role = lightkube_client.get(
         ClusterRole,
-        name=f"{ops_test.model.name}-{APP_NAME}-charm",
-        namespace=ops_test.model.name,
+        name=f"{ops_test.model_name}-{APP_NAME}-charm",
+        namespace=ops_test.model_name,
     )
     for rule in cluster_role.rules:
         if rule.apiGroups == "kubeflow.org":
@@ -288,13 +288,13 @@ async def test_remove_without_resources(ops_test: OpsTest):
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
         labels=[("app.juju.is/created-by", "training-operator")],
-        namespace=ops_test.model.name,
+        namespace=ops_test.model_name,
     )
     for crd in crd_list:
         lightkube_client.delete(
             CustomResourceDefinition,
             name=crd.metadata.name,
-            namespace=ops_test.model.name,
+            namespace=ops_test.model_name,
         )
 
     # remove deployed charm and verify that it is removed successfully
