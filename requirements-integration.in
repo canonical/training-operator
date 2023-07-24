@@ -3,4 +3,3 @@ juju<3.0
 pytest-operator
 pyyaml
 tenacity
--r requirements.txt
