@@ -1,8 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
-
 charmed-kubeflow-chisme
+jinja2
 lightkube
 lightkube-models
-jinja2
 ops
