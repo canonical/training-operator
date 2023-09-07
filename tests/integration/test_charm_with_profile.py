@@ -12,7 +12,7 @@ from lightkube.generic_resource import create_global_resource
 
 basedir = Path("./").absolute()
 PROFILE_NAMESPACE = "profile-example"
-PROFILE_FILE_PATH = f"{basedir}/tests/integration/profile/profile.yaml"
+PROFILE_FILE_PATH = f"{basedir}/tests/integration/profile.yaml"
 PROFILE_FILE = yaml.safe_load(Path(PROFILE_FILE_PATH).read_text())
 KUBEFLOW_USER_NAME = PROFILE_FILE["spec"]["owner"]["name"]
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
