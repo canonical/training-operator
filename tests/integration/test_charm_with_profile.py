@@ -37,16 +37,12 @@ async def test_build_and_deploy(ops_test: OpsTest):
     await ops_test.model.deploy(
         entity_url="kubeflow-roles",
         channel="latest/edge",
-        status="active",
-        raised_on_blocked=True,
-        timeout=60 * 10,
+        trust=True,
     )
     await ops_test.model.deploy(
         entity_url="kubeflow-profiles",
         channel="latest/edge",
-        status="active",
-        raised_on_blocked=True,
-        timeout=60 * 10,
+        trust=True,
     )
 
     await ops_test.model.wait_for_idle(
