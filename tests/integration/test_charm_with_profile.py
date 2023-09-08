@@ -1,7 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 import glob
-import time
+import logging
 from pathlib import Path
 
 import lightkube
@@ -10,14 +10,24 @@ import yaml
 from lightkube import codecs
 from lightkube.generic_resource import create_global_resource
 from pytest_operator.plugin import OpsTest
+from tenacity import (
+    RetryError,
+    Retrying,
+    retry,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential,
+)
 
 basedir = Path("./").absolute()
 PROFILE_NAMESPACE = "profile-example"
-PROFILE_FILE_PATH = f"{basedir}/tests/integration/profile.yaml"
-PROFILE_FILE = yaml.safe_load(Path(PROFILE_FILE_PATH).read_text())
-KUBEFLOW_USER_NAME = PROFILE_FILE["spec"]["owner"]["name"]
+PROFILE_NAME = "profile-example"
+PROFILE_FILE_PATH = basedir / "tests/integration/profile.yaml"
+PROFILE_FILE = yaml.safe_load(PROFILE_FILE_PATH.read_text())
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
+
+log = logging.getLogger(__name__)
 
 
 @pytest.mark.abort_on_fail
@@ -29,9 +39,6 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     await ops_test.model.deploy(
         charm_under_test, resources=resources, application_name=APP_NAME, trust=True
-    )
-    await ops_test.model.wait_for_idle(
-        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
@@ -74,33 +81,30 @@ async def test_authorization_for_creating_resources(
     assert stdout.strip() == "yes"
 
 
-def apply_manifests(lightkube_client: lightkube.Client, yaml_file_path: str):
-    """Apply resources using manifest files and returns the applied object.
+def apply_manifests(lightkube_client: lightkube.Client, yaml_file_path: Path):
+    """Apply resources using manifest files and return the applied object.
 
     Args:
         lightkube_client (lightkube.Client): an instance of lightkube.Client to
             use for applying resources.
-        yaml_file_path (str): the resource yaml file.
+        yaml_file_path (Path): the path to the resource yaml file.
 
     Returns:
         A namespaced or global lightkube resource (obj).
     """
-    read_yaml = Path(yaml_file_path).read_text()
+    read_yaml = yaml_file_path.read_text()
     yaml_loaded = codecs.load_all_yaml(read_yaml)
     for obj in yaml_loaded:
-        try:
-            lightkube_client.apply(
-                obj=obj,
-                name=obj.metadata.name,
-            )
-        except lightkube.core.exceptions.ApiError as api_error:
-            raise api_error
+        lightkube_client.apply(
+            obj=obj,
+            name=obj.metadata.name,
+        )
     return obj
 
 
 @pytest.fixture(scope="module")
 def lightkube_client() -> lightkube.Client:
-    """Returns a lightkube Client that can talk to the K8s API."""
+    """Return a lightkube Client that can talk to the K8s API."""
     client = lightkube.Client(field_manager="kfp-operators")
     return client
 
@@ -108,28 +112,28 @@ def lightkube_client() -> lightkube.Client:
 @pytest.fixture(scope="module")
 def apply_profile(lightkube_client):
     """Apply a Profile simulating a user."""
-    # Create a Viewer namespaced resource
-    profile_class_resource = create_global_resource(  # noqa F841
-        group="kubeflow.org", version="v1", kind="Profile", plural="profiles"
-    )
+    # Create a Profile global resource
+    profile_resource = create_global_resource(group="kubeflow.org", version="v1", kind="Profile", plural="profiles")
 
     # Apply Profile first
     apply_manifests(lightkube_client, PROFILE_FILE_PATH)
 
     # Allow time for the Profile to be created
-    time.sleep(10)
+    try:
+        for attempt in Retrying(stop=(stop_after_attempt(5) | stop_after_delay(30)), reraise=True):
+            with attempt:
+                lightkube_client.get(profile_resource, name=PROFILE_NAME)
+    except RetryError:
+        log.info(f"Profile {PROFILE_NAME} not found.")
 
     yield
 
     # Remove namespace
-    read_yaml = Path(PROFILE_FILE_PATH).read_text()
+    read_yaml = PROFILE_FILE_PATH.read_text()
     yaml_loaded = codecs.load_all_yaml(read_yaml)
     for obj in yaml_loaded:
-        try:
-            lightkube_client.delete(
-                res=type(obj),
-                name=obj.metadata.name,
-                namespace=obj.metadata.namespace,
-            )
-        except lightkube.core.exceptions.ApiError as api_error:
-            raise api_error
+        lightkube_client.delete(
+            res=type(obj),
+            name=obj.metadata.name,
+            namespace=obj.metadata.namespace,
+        )
