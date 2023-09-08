@@ -1,6 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 import glob
+import time
 from pathlib import Path
 
 import lightkube
@@ -115,6 +116,9 @@ def apply_profile(lightkube_client):
     # Apply Profile first
     apply_manifests(lightkube_client, PROFILE_FILE_PATH)
 
+    # Allow time for the Profile to be created
+    time.sleep(10)
+                    
     yield
 
     # Remove namespace
