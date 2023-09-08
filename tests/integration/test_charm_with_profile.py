@@ -115,7 +115,11 @@ def apply_profile(lightkube_client):
 
     # Allow time for the Profile to be created
     try:
-        for attempt in Retrying(stop=(stop_after_attempt(10) | stop_after_delay(30)), wait=wait_exponential(multiplier=1, min=5, max=10), reraise=True):
+        for attempt in Retrying(
+            stop=(stop_after_attempt(10) | stop_after_delay(30)),
+            wait=wait_exponential(multiplier=1, min=5, max=10),
+            reraise=True,
+        ):
             with attempt:
                 lightkube_client.get(profile_resource, name=PROFILE_NAME)
     except RetryError:
