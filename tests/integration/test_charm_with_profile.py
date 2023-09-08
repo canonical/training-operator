@@ -70,7 +70,7 @@ async def test_authorization_for_creating_resources(
         check=True,
         fail_msg="Failed to execute kubectl auth",
     )
-    assert stdout == "yes"
+    assert stdout.strip() == "yes"
 
 
 def apply_manifests(lightkube_client: lightkube.Client, yaml_file_path: str):
