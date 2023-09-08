@@ -35,11 +35,20 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
-        apps=["kubeflow-roles", "kubeflow-profiles"],
+        entity_url="kubeflow-roles",
+        channel="latest/edge",
         status="active",
         raised_on_blocked=True,
         timeout=60 * 10,
     )
+    await ops_test.model.deploy(
+        entity_url="kubeflow-profiles",
+        channel="latest/edge",
+        status="active",
+        raised_on_blocked=True,
+        timeout=60 * 10,
+    )
+
     await ops_test.model.wait_for_idle(
         status="active", raised_on_blocked=True, raise_on_error=True, timeout=60 * 10
     )
