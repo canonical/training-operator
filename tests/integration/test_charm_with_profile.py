@@ -60,7 +60,7 @@ async def test_authorization_for_creating_resources(
     # Set up for creating an object of kind *Job
     job_yaml = yaml.safe_load(Path(example).read_text())
     training_job = job_yaml["kind"]
-    _, stdout, __ = await ops_test.run(
+    _, stdout, _ = await ops_test.run(
         "kubectl",
         "auth",
         "can-i",
