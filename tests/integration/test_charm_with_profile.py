@@ -10,14 +10,7 @@ import yaml
 from lightkube import codecs
 from lightkube.generic_resource import create_global_resource
 from pytest_operator.plugin import OpsTest
-from tenacity import (
-    RetryError,
-    Retrying,
-    retry,
-    stop_after_attempt,
-    stop_after_delay,
-    wait_exponential,
-)
+from tenacity import RetryError, Retrying, stop_after_attempt, stop_after_delay
 
 basedir = Path("./").absolute()
 PROFILE_NAMESPACE = "profile-example"
@@ -113,7 +106,9 @@ def lightkube_client() -> lightkube.Client:
 def apply_profile(lightkube_client):
     """Apply a Profile simulating a user."""
     # Create a Profile global resource
-    profile_resource = create_global_resource(group="kubeflow.org", version="v1", kind="Profile", plural="profiles")
+    profile_resource = create_global_resource(
+        group="kubeflow.org", version="v1", kind="Profile", plural="profiles"
+    )
 
     # Apply Profile first
     apply_manifests(lightkube_client, PROFILE_FILE_PATH)
