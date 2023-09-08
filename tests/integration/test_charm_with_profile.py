@@ -118,7 +118,7 @@ def apply_profile(lightkube_client):
 
     # Allow time for the Profile to be created
     time.sleep(10)
-                    
+
     yield
 
     # Remove namespace
