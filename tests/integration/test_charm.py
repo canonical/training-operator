@@ -252,6 +252,7 @@ async def test_upgrade(ops_test: OpsTest):
         APP_NAME,
         f"--path={CHARM_LOCATION}",
         f'--resource="training-operator-image={image_path}"',
+        "--trust"
     )
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
