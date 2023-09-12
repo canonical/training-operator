@@ -3,31 +3,21 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app: {{ app_name }}
   name: {{ namespace }}-{{ app_name }}-charm
 rules:
   - apiGroups:
-      - kubeflow.org
+      - ""
     resources:
-      - mpijobs
-      - tfjobs
-      - mxjobs
-      - pytorchjobs
-      - xgboostjobs
-      - paddlejobs
-      - mpijobs/status
-      - tfjobs/status
-      - pytorchjobs/status
-      - mxjobs/status
-      - xgboostjobs/status
-      - paddlejobs/status
-      - mpijobs/finalizers
-      - tfjobs/finalizers
-      - pytorchjobs/finalizers
-      - mxjobs/finalizers
-      - xgboostjobs/finalizers
-      - paddlejobs/finalizers
+      - configmaps
+    verbs:
+      - create
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
     verbs:
       - create
       - delete
@@ -40,19 +30,14 @@ rules:
       - ""
     resources:
       - pods
-      - services
-      - endpoints
-      - events
     verbs:
-      - "*"
-  - apiGroups:
-      - apps
-      - extensions
-    resources:
-      - deployments
-    verbs:
-      - "*"
-  # This is needed for the launcher role of the MPI operator.
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
   - apiGroups:
       - ""
     resources:
@@ -60,44 +45,235 @@ rules:
     verbs:
       - create
   - apiGroups:
-      - rbac.authorization.k8s.io
+      - ""
     resources:
-      - roles
-      - rolebindings
+      - serviceaccounts
     verbs:
       - create
+      - get
       - list
       - watch
-      - update
   - apiGroups:
       - ""
     resources:
-    - configmaps
-    - secrets
-    - serviceaccounts
+      - services
     verbs:
       - create
+      - delete
+      - get
       - list
       - watch
-      - update
-  - apiGroups:
-      - scheduling.volcano.sh
-    resources:
-      - podgroups
-    verbs:
-      - "*"
   - apiGroups:
       - autoscaling
     resources:
       - horizontalpodautoscalers
     verbs:
-      - "*"
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
   - apiGroups:
-      - scheduling.sigs.k8s.io
+      - kubeflow.org
+    resources:
+      - mpijobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - mpijobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - mpijobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - mxjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - mxjobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - mxjobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - paddlejobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - paddlejobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - paddlejobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - pytorchjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - pytorchjobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+     - pytorchjobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - tfjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - tfjobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - tfjobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  # This is needed for the launcher role of the MPI operator.
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - xgboostjobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - xgboostjobs/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - xgboostjobs/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - create
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - scheduling.volcano.sh
     resources:
       - podgroups
     verbs:
-      - "*"
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - scheduling.x-k8s.io
+    resources:
+      - podgroups
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
 # Source manifests/apps/training-operator/upstream/overlays/kubeflow/kubeflow-training-roles.yaml
 ---
 apiVersion: rbac.authorization.k8s.io/v1
