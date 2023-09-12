@@ -51,6 +51,11 @@ jobs:
   integration-test:
     name: Integration
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        tox-environments:
+          - charm-integration
+          - integration-with-profiles
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -65,7 +70,8 @@ jobs:
           juju-channel: 3.1/stable
 
       - name: Run integration tests
-        run: sg snap_microk8s -c "tox -e integration -- --model testing"
+        run: tox -e ${{ matrix.tox-environments }} -- --model testing
+
 
       - name: Capture k8s resources on failure
         run: |
