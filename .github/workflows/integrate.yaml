@@ -70,7 +70,7 @@ jobs:
           juju-channel: 3.1/stable
 
       - name: Run integration tests
-        run: tox -e ${{ matrix.tox-environments }} -- --model testing
+        run: sg snap_microk8s -c "tox -e ${{ matrix.tox-environments }} -- --model testing"
 
 
       - name: Capture k8s resources on failure
