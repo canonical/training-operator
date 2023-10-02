@@ -8,6 +8,7 @@ import logging
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
+from charmed_kubeflow_chisme.pebble import update_layer
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
@@ -15,7 +16,7 @@ from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
-from ops.pebble import ChangeError, Layer
+from ops.pebble import Layer
 
 K8S_RESOURCE_FILES = [
     "src/templates/auth_manifests.yaml.j2",
@@ -181,19 +182,6 @@ class TrainingOperatorCharm(CharmBase):
                 raise GenericCharmRuntimeError("CRD resources creation failed") from error
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    def _update_layer(self) -> None:
-        """Update the Pebble configuration layer (if changed)."""
-        current_layer = self.container.get_plan()
-        new_layer = self._training_operator_layer
-        if current_layer.services != new_layer.services:
-            self.unit.status = MaintenanceStatus("Applying new pebble layer")
-            self.container.add_layer(self._container_name, new_layer, combine=True)
-            try:
-                self.logger.info("Pebble plan updated with new configuration, replaning")
-                self.container.replan()
-            except ChangeError as e:
-                raise GenericCharmRuntimeError("Failed to replan") from e
-
     # TODO: force_conflicts=True due to
     #  https://github.com/canonical/training-operator/issues/104
     #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
@@ -209,7 +197,7 @@ class TrainingOperatorCharm(CharmBase):
             self._check_container_connection()
             self._check_leader()
             self._apply_k8s_resources(force_conflicts=force_conflicts)
-            self._update_layer()
+            update_layer(self._name, self._container, self._training_operator_layer, logger)
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
