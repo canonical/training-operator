@@ -18,4 +18,5 @@ lightkube
 ops
 pytest
 cosl
+
 -r requirements.in
