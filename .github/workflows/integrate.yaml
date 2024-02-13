@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: pip install tox
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: pip install tox
@@ -58,7 +58,7 @@ jobs:
           - integration-with-profiles
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
