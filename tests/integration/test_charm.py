@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
 CHARM_LOCATION = None
+APP_PREVIOUS_CHANNEL = "1.6/stable"
+
+PROMETHEUS_K8S = "prometheus-k8s"
+PROMETHEUS_K8S_CHANNEL = "1.0/stable"
+PROMETHEUS_K8S_TRUST = True
+GRAFANA_K8S = "grafana-k8s"
+GRAFANA_K8S_CHANNEL = "1.0/stable"
+GRAFANA_K8S_TRUST = True
+PROMETHEUS_SCRAPE_K8S = "prometheus-scrape-config-k8s"
+PROMETHEUS_SCRAPE_K8S_CHANNEL = "1.0/stable"
+PROMETHEUS_SCRAPE_CONFIG = {"scrape_interval": "30s"}
 
 
 @pytest.mark.abort_on_fail
@@ -130,51 +141,43 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
 
 async def test_prometheus_grafana_integration(ops_test: OpsTest):
     """Deploy prometheus, grafana and required relations, then test the metrics."""
-    prometheus = "prometheus-k8s"
-    grafana = "grafana-k8s"
-    prometheus_scrape = "prometheus-scrape-config-k8s"
-    scrape_config = {"scrape_interval": "30s"}
-
     # Deploy and relate prometheus
-    # FIXME: Unpin revision once https://github.com/canonical/bundle-kubeflow/issues/688 is closed
-    await ops_test.juju(
-        "deploy",
-        prometheus,
-        "--channel",
-        "latest/edge",
-        "--revision",
-        "137",
-        "--trust",
-        check=True,
-    )
-    # FIXME: Unpin revision once https://github.com/canonical/bundle-kubeflow/issues/690 is closed
-    await ops_test.juju(
-        "deploy",
-        grafana,
-        "--channel",
-        "latest/edge",
-        "--revision",
-        "89",
-        "--trust",
-        check=True,
-    )
-    await ops_test.model.deploy(prometheus_scrape, channel="latest/beta", config=scrape_config)
-
-    await ops_test.model.add_relation(APP_NAME, prometheus_scrape)
-    await ops_test.model.add_relation(
-        f"{prometheus}:grafana-dashboard", f"{grafana}:grafana-dashboard"
-    )
-    await ops_test.model.add_relation(
-        f"{APP_NAME}:grafana-dashboard", f"{grafana}:grafana-dashboard"
-    )
-    await ops_test.model.add_relation(
-        f"{prometheus}:metrics-endpoint", f"{prometheus_scrape}:metrics-endpoint"
+    await ops_test.model.deploy(
+        PROMETHEUS_K8S,
+        channel=PROMETHEUS_K8S_CHANNEL,
+        trust=PROMETHEUS_K8S_TRUST,
     )
 
+    await ops_test.model.deploy(
+        GRAFANA_K8S,
+        channel=GRAFANA_K8S_CHANNEL,
+        trust=GRAFANA_K8S_TRUST,
+    )
+
+    await ops_test.model.deploy(
+        PROMETHEUS_SCRAPE_K8S,
+        channel=PROMETHEUS_SCRAPE_K8S_CHANNEL,
+        config=PROMETHEUS_SCRAPE_CONFIG,
+    )
+
+    await ops_test.model.add_relation(APP_NAME, PROMETHEUS_SCRAPE_K8S)
+    await ops_test.model.add_relation(
+        f"{PROMETHEUS_K8S}:grafana-dashboard",
+        f"{GRAFANA_K8S}:grafana-dashboard",
+    )
+    await ops_test.model.add_relation(
+        f"{APP_NAME}:grafana-dashboard", f"{GRAFANA_K8S}:grafana-dashboard"
+    )
+    await ops_test.model.add_relation(
+        f"{PROMETHEUS_K8S}:metrics-endpoint",
+        f"{PROMETHEUS_SCRAPE_K8S}:metrics-endpoint",
+    )
     await ops_test.model.wait_for_idle(status="active", timeout=60 * 20)
 
     status = await ops_test.model.get_status()
-    prometheus_unit_ip = status["applications"][prometheus]["units"][f"{prometheus}/0"]["address"]
+    prometheus_unit_ip = status["applications"][PROMETHEUS_K8S]["units"][f"{PROMETHEUS_K8S}/0"][
+        "address"
+    ]
     logger.info(f"Prometheus available at http://{prometheus_unit_ip}:9090")
 
     for attempt in retry_for_5_attempts:
@@ -245,7 +248,7 @@ async def test_upgrade(ops_test: OpsTest):
     """
 
     # deploy stable version of the charm
-    await ops_test.model.deploy(entity_url=APP_NAME, channel="1.5/stable", trust=True)
+    await ops_test.model.deploy(entity_url=APP_NAME, channel=APP_PREVIOUS_CHANNEL, trust=True)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
