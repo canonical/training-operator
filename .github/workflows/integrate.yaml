@@ -75,9 +75,6 @@ jobs:
       - name: Run integration tests
         run: sg snap_microk8s -c "tox -e ${{ matrix.tox-environments }} -- --model testing"
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: Capture k8s resources on failure
         run: |
           set -eux
