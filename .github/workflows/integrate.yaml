@@ -67,7 +67,7 @@ jobs:
           channel: 1.25-strict/stable
           microk8s-addons: "dns hostpath-storage rbac metallb:10.64.140.43-10.64.140.49"
           charmcraft-channel: latest/stable
-          juju-channel: 3.1/stable
+          juju-channel: 3.5/stable
 
       - name: Run integration tests
         run: sg snap_microk8s -c "tox -e ${{ matrix.tox-environments }} -- --model testing"
