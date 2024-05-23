@@ -20,7 +20,7 @@ from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
-    "src/templates/auth_manifests.yaml.j2",
+    "src/templates/aggregated_clusterroles.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
     "src/templates/crds_manifests.yaml.j2",
