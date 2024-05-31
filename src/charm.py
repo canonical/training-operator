@@ -17,10 +17,10 @@ from lightkube.models.core_v1 import ServicePort
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
-from ops.pebble import ChangeError, Layer
 
 K8S_RESOURCE_FILES = [
-    "src/templates/auth_manifests.yaml.j2",
+    "src/templates/rbac_manifests.yaml.j2",
+    "src/templates/deployment.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
     "src/templates/crds_manifests.yaml.j2",
@@ -56,12 +56,16 @@ class TrainingOperatorCharm(CharmBase):
             ],
         )
 
+        self._image = self.config["training-operator-image"]
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._lightkube_field_manager = "lightkube"
-        self._container_name = "training-operator"
-        self._container = self.unit.get_container(self._name)
-        self._context = {"namespace": self._namespace, "app_name": self._name}
+        self._context = {
+            "namespace": self._namespace,
+            "app_name": self._name,
+            "training_operator_image": self._image,
+            "metrics_port": METRICS_PORT,
+        }
 
         self._k8s_resource_handler = None
         self._crd_resource_handler = None
@@ -71,14 +75,8 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
         self.framework.observe(self.on.config_changed, self._on_event)
         self.framework.observe(self.on.leader_elected, self._on_event)
-        self.framework.observe(self.on.training_operator_pebble_ready, self._on_pebble_ready)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
-
-    @property
-    def container(self):
-        """Return container."""
-        return self._container
 
     @property
     def k8s_resource_handler(self):
@@ -114,36 +112,9 @@ class TrainingOperatorCharm(CharmBase):
     def crd_resource_handler(self, handler: KubernetesResourceHandler):
         self._crd_resource_handler = handler
 
-    @property
-    def _training_operator_layer(self) -> Layer:
-        """Returns a pre-configured Pebble layer."""
-
-        layer_config = {
-            "summary": "training-operator layer",
-            "description": "pebble config layer for training-operator",
-            "services": {
-                self._container_name: {
-                    "override": "replace",
-                    "summary": "entrypoint of the training-operator image",
-                    # /manager is the entrypoint on Kubeflow's training-operator image
-                    "command": "/manager",
-                    "startup": "enabled",
-                    "environment": {
-                        "MY_POD_NAMESPACE": self._namespace,
-                        "MY_POD_NAME": self._name,
-                    },
-                }
-            },
-        }
-        return Layer(layer_config)
-
-    def _check_container_connection(self):
-        """Check if connection can be made with container."""
-        if not self.container.can_connect():
-            raise ErrorWithStatus("Pod startup is not complete", MaintenanceStatus)
-
     def _check_leader(self):
         """Check if this unit is a leader."""
+        self.framework.observe(self.on.update_status, self._on_event)
         if not self.unit.is_leader():
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
@@ -189,19 +160,6 @@ class TrainingOperatorCharm(CharmBase):
                 raise GenericCharmRuntimeError("CRD resources creation failed") from error
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    def _update_layer(self) -> None:
-        """Update the Pebble configuration layer (if changed)."""
-        current_layer = self.container.get_plan()
-        new_layer = self._training_operator_layer
-        if current_layer.services != new_layer.services:
-            self.unit.status = MaintenanceStatus("Applying new pebble layer")
-            self.container.add_layer(self._container_name, new_layer, combine=True)
-            try:
-                self.logger.info("Pebble plan updated with new configuration, replaning")
-                self.container.replan()
-            except ChangeError as e:
-                raise GenericCharmRuntimeError("Failed to replan") from e
-
     # TODO: force_conflicts=True due to
     #  https://github.com/canonical/training-operator/issues/104
     #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
@@ -214,19 +172,13 @@ class TrainingOperatorCharm(CharmBase):
                                     resources.
         """
         try:
-            self._check_container_connection()
             self._check_leader()
             self._apply_k8s_resources(force_conflicts=force_conflicts)
-            self._update_layer()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
 
         self.model.unit.status = ActiveStatus()
-
-    def _on_pebble_ready(self, _):
-        """Configure started container."""
-        self._on_event(_)
 
     def _on_install(self, _):
         """Perform installation only actions."""
