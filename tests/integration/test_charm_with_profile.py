@@ -37,9 +37,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
     """Build the charm and deploy."""
     charm_under_test = await ops_test.build_charm(".")
 
-    await ops_test.model.deploy(
-        charm_under_test, application_name=APP_NAME, trust=True
-    )
+    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
