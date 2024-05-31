@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    control-plane: {{ namespace }}-{{ app_name }}
+    control-plane: {{ namespace }}-{{ app_name }
   name: {{ app_name }}
   namespace: {{ namespace }}
 spec:
@@ -39,7 +39,10 @@ spec:
           timeoutSeconds: 3
         name: {{ app_name }}
         ports:
-        - containerPort: 8080
+        - containerPort: {{ metrics_port }}
+        - containerPort: {{ webhook_port }}
+          name: webhook-server
+          protocol: TCP
         readinessProbe:
           httpGet:
             path: /readyz
@@ -49,5 +52,14 @@ spec:
           timeoutSeconds: 3
         securityContext:
           allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
       serviceAccountName: {{ app_name }}-workload
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: training-operator-webhook-cert

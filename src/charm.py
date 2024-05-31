@@ -20,13 +20,16 @@ from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
     "src/templates/rbac_manifests.yaml.j2",
+    "src/templates/secret.yaml.j2",
     "src/templates/deployment.yaml.j2",
+    "src/templates/validatingwebhookconfiguration.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
     "src/templates/crds_manifests.yaml.j2",
 ]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
+WEBHOOK_PORT = "9443"
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +42,12 @@ class TrainingOperatorCharm(CharmBase):
 
         self.logger = logging.getLogger(__name__)
         metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
+        webhook_port = ServicePort(
+            port=443, targetPort=9443, protocol="TCP", name="webhook-server"
+        )
         self.service_patcher = KubernetesServicePatch(
             self,
-            [metrics_port],
+            [metrics_port, webhook_port],
             service_name=f"{self.model.app.name}",
         )
 
@@ -65,6 +71,7 @@ class TrainingOperatorCharm(CharmBase):
             "app_name": self._name,
             "training_operator_image": self._image,
             "metrics_port": METRICS_PORT,
+            "webhook_port": WEBHOOK_PORT,
         }
 
         self._k8s_resource_handler = None
