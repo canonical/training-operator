@@ -73,7 +73,9 @@ class TrainingOperatorCharm(CharmBase):
             jobs=[
                 {
                     "metrics_path": METRICS_PATH,
-                    "static_configs": [{"targets": [f"{self._name}.{self._namespace}.svc:{METRICS_PORT}"]}],
+                    "static_configs": [
+                        {"targets": [f"{self._name}.{self._namespace}.svc:{METRICS_PORT}"]}
+                    ],
                 }
             ],
         )
