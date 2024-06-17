@@ -2,7 +2,6 @@
 # See LICENSE file for licensing details.
 
 import glob
-import json
 import logging
 from pathlib import Path
 
@@ -10,12 +9,9 @@ import lightkube
 import lightkube.codecs
 import lightkube.generic_resource
 import pytest
-import requests
 import tenacity
 import yaml
-from charm import METRICS_PATH, METRICS_PORT
 from charmed_kubeflow_chisme.testing import (
-    GRAFANA_AGENT_APP,
     assert_alert_rules,
     assert_metrics_endpoint,
     deploy_and_assert_grafana_agent,
@@ -24,6 +20,8 @@ from charmed_kubeflow_chisme.testing import (
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
+
+from charm import METRICS_PATH, METRICS_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +52,9 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # store charm location in global to be used in other tests
     global CHARM_LOCATION
     CHARM_LOCATION = charm_under_test
+
+    # Deploy grafana-agent for COS integration tests
+    await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
 
 def lightkube_create_global_resources() -> dict:
