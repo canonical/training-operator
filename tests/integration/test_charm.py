@@ -21,14 +21,14 @@ from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
 
-from charm import METRICS_PATH, METRICS_PORT
-
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "1.7/stable"
+METRICS_PATH = "/metrics"
+METRICS_PORT = 8080
 
 
 @pytest.mark.abort_on_fail
