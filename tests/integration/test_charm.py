@@ -13,6 +13,14 @@ import pytest
 import requests
 import tenacity
 import yaml
+from charm import METRICS_PATH, METRICS_PORT
+from charmed_kubeflow_chisme.testing import (
+    GRAFANA_AGENT_APP,
+    assert_alert_rules,
+    assert_metrics_endpoint,
+    deploy_and_assert_grafana_agent,
+    get_alert_rules,
+)
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
@@ -23,16 +31,6 @@ METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "1.7/stable"
-
-PROMETHEUS_K8S = "prometheus-k8s"
-PROMETHEUS_K8S_CHANNEL = "latest/stable"
-PROMETHEUS_K8S_TRUST = True
-GRAFANA_K8S = "grafana-k8s"
-GRAFANA_K8S_CHANNEL = "latest/stable"
-GRAFANA_K8S_TRUST = True
-PROMETHEUS_SCRAPE_K8S = "prometheus-scrape-config-k8s"
-PROMETHEUS_SCRAPE_K8S_CHANNEL = "latest/stable"
-PROMETHEUS_SCRAPE_CONFIG = {"scrape_interval": "30s"}
 
 
 @pytest.mark.abort_on_fail
@@ -139,70 +137,25 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     assert_job_status_running_success()
 
 
-async def test_prometheus_grafana_integration(ops_test: OpsTest):
-    """Deploy prometheus, grafana and required relations, then test the metrics."""
-    # Deploy and relate prometheus
-    await ops_test.model.deploy(
-        PROMETHEUS_K8S,
-        channel=PROMETHEUS_K8S_CHANNEL,
-        trust=PROMETHEUS_K8S_TRUST,
-    )
-
-    await ops_test.model.deploy(
-        GRAFANA_K8S,
-        channel=GRAFANA_K8S_CHANNEL,
-        trust=GRAFANA_K8S_TRUST,
-    )
-
-    await ops_test.model.deploy(
-        PROMETHEUS_SCRAPE_K8S,
-        channel=PROMETHEUS_SCRAPE_K8S_CHANNEL,
-        config=PROMETHEUS_SCRAPE_CONFIG,
-    )
-
-    await ops_test.model.add_relation(APP_NAME, PROMETHEUS_SCRAPE_K8S)
-    await ops_test.model.add_relation(
-        f"{PROMETHEUS_K8S}:grafana-dashboard",
-        f"{GRAFANA_K8S}:grafana-dashboard",
-    )
-    await ops_test.model.add_relation(
-        f"{APP_NAME}:grafana-dashboard", f"{GRAFANA_K8S}:grafana-dashboard"
-    )
-    await ops_test.model.add_relation(
-        f"{PROMETHEUS_K8S}:metrics-endpoint",
-        f"{PROMETHEUS_SCRAPE_K8S}:metrics-endpoint",
-    )
-    await ops_test.model.wait_for_idle(status="active", timeout=60 * 20)
-
-    status = await ops_test.model.get_status()
-    prometheus_unit_ip = status["applications"][PROMETHEUS_K8S]["units"][f"{PROMETHEUS_K8S}/0"][
-        "address"
-    ]
-    logger.info(f"Prometheus available at http://{prometheus_unit_ip}:9090")
-
+async def test_alert_rules(self, ops_test: OpsTest):
+    """Test check charm alert rules and rules defined in relation data bag."""
+    app = ops_test.model.applications[APP_NAME]
+    alert_rules = get_alert_rules()
+    logger.info("found alert_rules: %s", alert_rules)
     for attempt in retry_for_5_attempts:
-        logger.info(
-            f"Testing prometheus deployment (attempt " f"{attempt.retry_state.attempt_number})"
-        )
-        with attempt:
-            r = requests.get(
-                f"http://{prometheus_unit_ip}:9090/api/v1/query?"
-                f'query=up{{juju_application="{APP_NAME}"}}'
-            )
-            response = json.loads(r.content.decode("utf-8"))
-            response_status = response["status"]
-            logger.info(f"Response status is {response_status}")
-            assert response_status == "success"
+        await assert_alert_rules(app, alert_rules)
 
-            # Assert the unit is available by checking the query result
-            # The data is presented as a list [1707357912.349, '1'], where the
-            # first value is a timestamp and the second value is the state of the unit
-            # 1 means available, 0 means unavailable
-            assert response["data"]["result"][0]["value"][1] == "1"
 
-            response_metric = response["data"]["result"][0]["metric"]
-            assert response_metric["juju_application"] == APP_NAME
-            assert response_metric["juju_model"] == ops_test.model_name
+async def test_metrics_enpoint(self, ops_test: OpsTest):
+    """Test metrics_endpoints are defined in relation data bag and their accessibility.
+
+    This function gets all the metrics_endpoints from the relation data bag, checks if
+    they are available from the grafana-agent-k8s charm and finally compares them with the
+    ones provided to the function.
+    """
+    app = ops_test.model.applications[APP_NAME]
+    for attempt in retry_for_5_attempts:
+        await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 # Helper to retry calling a function over 30 seconds or 5 attempts
