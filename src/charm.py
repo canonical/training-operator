@@ -116,7 +116,6 @@ class TrainingOperatorCharm(CharmBase):
 
     def _check_leader(self):
         """Check if this unit is a leader."""
-        self.framework.observe(self.on.update_status, self._on_event)
         if not self.unit.is_leader():
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
