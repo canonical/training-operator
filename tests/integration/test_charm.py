@@ -138,7 +138,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     assert_job_status_running_success()
 
 
-async def test_alert_rules(self, ops_test: OpsTest):
+async def test_alert_rules(ops_test: OpsTest):
     """Test check charm alert rules and rules defined in relation data bag."""
     app = ops_test.model.applications[APP_NAME]
     alert_rules = get_alert_rules()
@@ -147,7 +147,7 @@ async def test_alert_rules(self, ops_test: OpsTest):
         await assert_alert_rules(app, alert_rules)
 
 
-async def test_metrics_enpoint(self, ops_test: OpsTest):
+async def test_metrics_enpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
 
     This function gets all the metrics_endpoints from the relation data bag, checks if
