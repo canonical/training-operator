@@ -29,6 +29,7 @@ APP_PREVIOUS_CHANNEL = "1.7/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
 
+
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest):
     """Build the charm and deploy it with trust=True.
@@ -148,8 +149,13 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     ones provided to the function.
     """
     app = ops_test.model.applications[APP_NAME]
+    # metrics_target should be the same as the one defined in the charm code when instantiating
+    # the MetricsEndpointProvider. It is set to the training-operator Service name because this
+    # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
     metrics_target = f"{APP_NAME}.{ops_test.model.name}.svc"
-    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target)
+    await assert_metrics_endpoint(
+        app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target
+    )
 
 
 @pytest.mark.abort_on_fail
