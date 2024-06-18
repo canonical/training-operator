@@ -143,8 +143,7 @@ async def test_alert_rules(ops_test: OpsTest):
     app = ops_test.model.applications[APP_NAME]
     alert_rules = get_alert_rules()
     logger.info("found alert_rules: %s", alert_rules)
-    for attempt in retry_for_5_attempts:
-        await assert_alert_rules(app, alert_rules)
+    await assert_alert_rules(app, alert_rules)
 
 
 async def test_metrics_enpoint(ops_test: OpsTest):
@@ -155,16 +154,7 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     ones provided to the function.
     """
     app = ops_test.model.applications[APP_NAME]
-    for attempt in retry_for_5_attempts:
-        await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
-
-
-# Helper to retry calling a function over 30 seconds or 5 attempts
-retry_for_5_attempts = tenacity.Retrying(
-    stop=(tenacity.stop_after_attempt(5) | tenacity.stop_after_delay(30)),
-    wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-    reraise=True,
-)
+    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 @pytest.mark.abort_on_fail
