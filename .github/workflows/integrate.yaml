@@ -42,7 +42,7 @@ jobs:
         run: tox -e unit
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: training-operator-cov_html
