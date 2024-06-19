@@ -65,9 +65,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.remove, self._on_remove)
 
         metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
-        webhook_port = ServicePort(
-            port=443, targetPort=9443, protocol="TCP", name="webhook-server"
-        )
+        webhook_port = ServicePort(int(WEBHOOK_PORT), protocol="TCP", name="webhook-server")
         self.service_patcher = KubernetesServicePatch(
             self,
             [metrics_port, webhook_port],
@@ -123,7 +121,6 @@ class TrainingOperatorCharm(CharmBase):
 
     def _check_leader(self):
         """Check if this unit is a leader."""
-        self.framework.observe(self.on.update_status, self._on_event)
         if not self.unit.is_leader():
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
