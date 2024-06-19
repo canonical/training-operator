@@ -44,6 +44,9 @@ jobs:
           - charm-integration
           - integration-with-profiles
     steps:
+      - name: Maximise GH runner space
+        uses: jlumbroso/free-disk-space@v1.3.1
+
       - name: Check out code
         uses: actions/checkout@v3
 
@@ -51,10 +54,10 @@ jobs:
         uses: charmed-kubernetes/actions-operator@main
         with:
           provider: microk8s
-          channel: 1.25-strict/stable
+          channel: 1.29-strict/stable
           microk8s-addons: "dns hostpath-storage rbac metallb:10.64.140.43-10.64.140.49"
           charmcraft-channel: latest/stable
-          juju-channel: 3.1/stable
+          juju-channel: 3.5/stable
 
       - name: Run integration tests
         run: sg snap_microk8s -c "tox -e ${{ matrix.tox-environments }} -- --model testing"
