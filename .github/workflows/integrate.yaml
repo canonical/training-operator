@@ -8,25 +8,12 @@ on:
         required: true
 
 jobs:
-  lib-check:
-    name: Check libraries
+  quality-checks:
+    name: Quality checks
     uses: canonical/charmed-kubeflow-workflows/.github/workflows/_quality-checks.yaml@main
     secrets: inherit
     with:
         charm-path: "."
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-20.04
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v3
-
-    - name: Install dependencies
-      run: pip install tox
-
-    - name: Lint code
-      run: tox -vve lint
 
   unit-test:
     name: Unit
