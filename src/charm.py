@@ -41,27 +41,6 @@ class TrainingOperatorCharm(CharmBase):
         super().__init__(*args)
 
         self.logger = logging.getLogger(__name__)
-        metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
-        webhook_port = ServicePort(
-            port=443, targetPort=9443, protocol="TCP", name="webhook-server"
-        )
-        self.service_patcher = KubernetesServicePatch(
-            self,
-            [metrics_port, webhook_port],
-            service_name=f"{self.model.app.name}",
-        )
-
-        self.prometheus_provider = MetricsEndpointProvider(
-            charm=self,
-            relation_name="metrics-endpoint",
-            jobs=[
-                {
-                    "metrics_path": METRICS_PATH,
-                    "static_configs": [{"targets": ["*:{}".format(METRICS_PORT)]}],
-                }
-            ],
-        )
-
         self._image = self.config["training-operator-image"]
         self._name = self.model.app.name
         self._namespace = self.model.name
@@ -84,6 +63,29 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
+
+        metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
+        webhook_port = ServicePort(
+            port=443, targetPort=9443, protocol="TCP", name="webhook-server"
+        )
+        self.service_patcher = KubernetesServicePatch(
+            self,
+            [metrics_port, webhook_port],
+            service_name=f"{self.model.app.name}",
+        )
+
+        self.prometheus_provider = MetricsEndpointProvider(
+            charm=self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": METRICS_PATH,
+                    "static_configs": [
+                        {"targets": [f"{self._name}.{self._namespace}.svc:{METRICS_PORT}"]}
+                    ],
+                }
+            ],
+        )
 
     @property
     def k8s_resource_handler(self):

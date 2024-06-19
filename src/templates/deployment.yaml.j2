@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    control-plane: {{ namespace }}-{{ app_name }
+    control-plane: {{ namespace }}-{{ app_name }}
   name: {{ app_name }}
   namespace: {{ namespace }}
 spec:
@@ -16,6 +16,8 @@ spec:
         sidecar.istio.io/inject: "false"
       labels:
         control-plane: {{ namespace }}-{{ app_name }}
+        # Use this label so the training operator Pod can use the juju created Service
+        app.kubernetes.io/name: {{ app_name }}
     spec:
       containers:
       - command:
