@@ -1,9 +1,23 @@
-# Source: manifests/base/cluster-role.yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: {{ app_name }}
+  name: {{ app_name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ app_name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ app_name }}-workload
+    namespace: {{ namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ namespace }}-{{ app_name }}-charm
+  name: {{ app_name }}
 rules:
   - apiGroups:
       - ""
@@ -47,6 +61,15 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
       - serviceaccounts
     verbs:
       - create
@@ -62,6 +85,15 @@ rules:
       - delete
       - get
       - list
+      - watch
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - list
+      - update
       - watch
   - apiGroups:
       - autoscaling
@@ -174,7 +206,7 @@ rules:
   - apiGroups:
       - kubeflow.org
     resources:
-     - pytorchjobs/status
+      - pytorchjobs/status
     verbs:
       - get
       - patch
@@ -205,7 +237,6 @@ rules:
       - get
       - patch
       - update
-  # This is needed for the launcher role of the MPI operator.
   - apiGroups:
       - kubeflow.org
     resources:
@@ -274,7 +305,6 @@ rules:
       - patch
       - update
       - watch
-# Source manifests/apps/training-operator/upstream/overlays/kubeflow/kubeflow-training-roles.yaml
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -356,3 +386,11 @@ rules:
       - paddlejobs/status
     verbs:
       - get
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: {{ app_name }}-workload
+  name: {{ app_name }}-workload
+  namespace: {{ namespace }}

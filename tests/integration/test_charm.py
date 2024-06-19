@@ -23,7 +23,6 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "1.7/stable"
@@ -38,12 +37,8 @@ async def test_build_and_deploy(ops_test: OpsTest):
     Assert on the unit status.
     """
     charm_under_test = await ops_test.build_charm(".")
-    image_path = METADATA["resources"]["training-operator-image"]["upstream-source"]
-    resources = {"training-operator-image": image_path}
 
-    await ops_test.model.deploy(
-        charm_under_test, resources=resources, application_name=APP_NAME, trust=True
-    )
+    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
@@ -154,7 +149,13 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     ones provided to the function.
     """
     app = ops_test.model.applications[APP_NAME]
-    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
+    # metrics_target should be the same as the one defined in the charm code when instantiating
+    # the MetricsEndpointProvider. It is set to the training-operator Service name because this
+    # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
+    metrics_target = f"{APP_NAME}.{ops_test.model.name}.svc"
+    await assert_metrics_endpoint(
+        app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target
+    )
 
 
 @pytest.mark.abort_on_fail
@@ -199,12 +200,10 @@ async def test_upgrade(ops_test: OpsTest):
 
     # refresh (upgrade) using charm built in test_build_and_deploy()
     # NOTE: using ops_test.juju() because there is no functionality to refresh in ops_test
-    image_path = METADATA["resources"]["training-operator-image"]["upstream-source"]
     await ops_test.juju(
         "refresh",
         APP_NAME,
         f"--path={CHARM_LOCATION}",
-        f'--resource="training-operator-image={image_path}"',
         "--trust",
     )
     await ops_test.model.wait_for_idle(
