@@ -65,7 +65,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.remove, self._on_remove)
 
         metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
-        webhook_port = ServicePort(int(WEBHOOK_PORT), protocol="TCP", name="webhook-server")
+        webhook_port = ServicePort(port=443, target_port=int(WEBHOOK_PORT), protocol="TCP", name="webhook-server")
         self.service_patcher = KubernetesServicePatch(
             self,
             [metrics_port, webhook_port],
