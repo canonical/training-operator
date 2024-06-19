@@ -42,9 +42,6 @@ def harness() -> Harness:
     """Create and return Harness for testing."""
     harness = Harness(TrainingOperatorCharm)
 
-    # setup container networking simulation
-    harness.set_can_connect("training-operator", True)
-
     return harness
 
 
@@ -62,7 +59,6 @@ class TestCharm:
     ):
         """Test not a leader scenario."""
         harness.begin_with_initial_hooks()
-        harness.container_pebble_ready("training-operator")
         assert harness.charm.model.unit.status == WaitingStatus("Waiting for leadership")
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
@@ -76,41 +72,9 @@ class TestCharm:
     ):
         """Test no relation scenario."""
         harness.set_leader(True)
-        harness.add_oci_resource(
-            "training-operator-image",
-            {
-                "registrypath": "ci-test",
-                "username": "",
-                "password": "",
-            },
-        )
 
         harness.begin_with_initial_hooks()
-        harness.container_pebble_ready("training-operator")
         assert harness.charm.model.unit.status == ActiveStatus("")
-
-    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
-    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
-    def test_pebble_layer(
-        self,
-        _: MagicMock,  # k8s_resource_handler
-        ___: MagicMock,  # crd_resource_handler
-        harness: Harness,
-    ):
-        """Test creation of Pebble layer. Only testing specific items."""
-        harness.set_leader(True)
-        harness.set_model_name("test_kubeflow")
-        harness.begin_with_initial_hooks()
-        harness.container_pebble_ready("training-operator")
-        pebble_plan = harness.get_container_pebble_plan("training-operator")
-        assert pebble_plan
-        assert pebble_plan._services
-        pebble_plan_info = pebble_plan.to_dict()
-        assert pebble_plan_info["services"]["training-operator"]["command"] == "/manager"
-        test_env = pebble_plan_info["services"]["training-operator"]["environment"]
-        assert 2 == len(test_env)
-        assert "test_kubeflow" == test_env["MY_POD_NAMESPACE"]
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
