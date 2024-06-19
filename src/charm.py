@@ -29,7 +29,8 @@ CRD_RESOURCE_FILES = [
 ]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
-WEBHOOK_PORT = "9443"
+WEBHOOK_PORT = "443"
+WEBHOOK_TARGET_PORT = "9443"
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,12 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.remove, self._on_remove)
 
         metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
-        webhook_port = ServicePort(port=443, target_port=int(WEBHOOK_PORT), protocol="TCP", name="webhook-server")
+        webhook_port = ServicePort(
+            port=int(WEBHOOK_PORT),
+            targetPort=int(WEBHOOK_TARGET_PORT),
+            protocol="TCP",
+            name="webhook-server",
+        )
         self.service_patcher = KubernetesServicePatch(
             self,
             [metrics_port, webhook_port],
