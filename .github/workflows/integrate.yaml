@@ -94,7 +94,7 @@ jobs:
         if: failure()
 
       - name: Get secret
-        run: kubectl get secret -ntesting training-operator-webhook-cert
+        run: kubectl get secret -ntesting training-operator-webhook-cert -oyaml
         if: failure()
 
       - name: Get pods
