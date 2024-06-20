@@ -51,24 +51,38 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
-    # Wait for the training-operator workload Pod to run and the operator to start
-    await ensure_training_operator_is_running(ops_test)
-
-
-async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
-    """Waits until the training-operator workload Pod's status is Running."""
-    # The training-operator workload Pod gets a random name, the easiest way
-    # to wait for it to be ready is using kubectl directly
-    await ops_test.run(
-        "kubectl",
-        "wait",
-        "--for=condition=ready",
-        "pod",
-        "-lapp.kubernetes.io/name=training-operator",
-        f"-n{ops_test.model_name}",
-        "--timeout=10m",
-        check=True,
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
+        stop=tenacity.stop_after_delay(30),
+        reraise=True,
     )
+    def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
+        """Waits until the training-operator workload Pod's status is Running."""
+        # The training-operator workload Pod gets a random name, the easiest way
+        # to wait for it to be ready is using kubectl directly
+        ops_test.run(
+            "kubectl",
+            "wait",
+            "--for=condition=ready",
+            "pod",
+            "-lapp.kubernetes.io/name=training-operator",
+            f"-n{ops_test.model_name}",
+            "--timeout=10m",
+            check=True,
+        )
+
+        _, out, err = ops_test.run(
+            "kubectl",
+            "get",
+            "pods" f"-n{ops_test.model_name}",
+            "--field-selector",
+            "status.phase!=Running",
+            check=True,
+        )
+        assert "training-operator" not in out
+
+    # Wait for the training-operator workload Pod to run and the operator to start
+    ensure_training_operator_is_running(ops_test)
 
 
 def lightkube_create_global_resources() -> dict:
