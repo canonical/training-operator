@@ -92,10 +92,14 @@ jobs:
         run: kubectl get validatingwebhookconfigurations validator.training-operator.kubeflow.org -oyaml
         if: failure()
 
+      - name: Get secret
+        run: kubectl get secret -n kubeflow training-operator-webhook-cert
+        if: failure()
+
       - name: Get pods
         run: kubectl get pods -A
         if: failure()
 
       - name: Get operator logs
-        run: kubectl logs -ntesting -lapp.kubernetes.io/name=training-operator -ctraining-operator
+        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ctraining-operator
         if: failure()
