@@ -93,7 +93,7 @@ jobs:
         if: failure()
 
       - name: Get secret
-        run: kubectl get secret -n kubeflow training-operator-webhook-cert
+        run: kubectl get secret -ntesting training-operator-webhook-cert
         if: failure()
 
       - name: Get pods
