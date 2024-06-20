@@ -51,9 +51,9 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
-
     # Wait for the training-operator workload Pod to run and the operator to start
     await ensure_training_operator_is_running(ops_test)
+
 
 @tenacity.retry(
     wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
@@ -78,12 +78,14 @@ async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
     _, out, err = await ops_test.run(
         "kubectl",
         "get",
-        "pods" f"-n{ops_test.model_name}",
+        "pods",
+        f"-n{ops_test.model_name}",
         "--field-selector",
         "status.phase!=Running",
         check=True,
     )
     assert "training-operator" not in out
+
 
 def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
