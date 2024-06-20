@@ -51,7 +51,7 @@ class TrainingOperatorCharm(CharmBase):
             "app_name": self._name,
             "training_operator_image": self._image,
             "metrics_port": METRICS_PORT,
-            "webhook_port": WEBHOOK_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
         }
 
         self._k8s_resource_handler = None

@@ -42,7 +42,7 @@ spec:
         name: {{ app_name }}
         ports:
         - containerPort: {{ metrics_port }}
-        - containerPort: {{ webhook_port }}
+        - containerPort: {{ webhook_target_port }}
           name: webhook-server
           protocol: TCP
         readinessProbe:
