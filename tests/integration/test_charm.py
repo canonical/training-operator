@@ -55,7 +55,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
     await ensure_training_operator_is_running(ops_test)
 
 
-def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
+async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
     """Waits until the training-operator workload Pod's status is Running."""
     # The training-operator workload Pod gets a random name, the easiest way
     # to wait for it to be ready is using kubectl directly
