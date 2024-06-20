@@ -71,7 +71,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
             check=True,
         )
 
-        _, out, err = ops_test.run(
+        _, out, err = await ops_test.run(
             "kubectl",
             "get",
             "pods" f"-n{ops_test.model_name}",
