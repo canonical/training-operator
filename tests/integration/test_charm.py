@@ -51,6 +51,8 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
+    import time; time.sleep(300)
+
 
 def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
