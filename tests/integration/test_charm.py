@@ -130,6 +130,9 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
         """Create the training job.
 
         Retry if there is an error when creating the Job.
+        The training-operator may not be ready (even though the Pod shows a Running status,
+        this retry allows the create command to fail a couple times to allow the operator to
+        start all validatingwebhooks for each training job type.
         """
         # Create *Job and check if it exists where expected
         lightkube_client.create(job_object, namespace=namespace)
