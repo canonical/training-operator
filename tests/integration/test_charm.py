@@ -121,8 +121,18 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     job_object = lightkube.codecs.load_all_yaml(yaml.dump(job_yaml))[0]
     job_class = JOBS_CLASSES[job_object.kind]
 
-    # Create *Job and check if it exists where expected
-    lightkube_client.create(job_object, namespace=namespace)
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(30),
+        reraise=True,
+    )
+    def create_training_job():
+        """Create the training job.
+
+        Retry if there is an error when creating the Job.
+        """
+        # Create *Job and check if it exists where expected
+        lightkube_client.create(job_object, namespace=namespace)
 
     # Allow the resource to be created
     @tenacity.retry(
@@ -164,6 +174,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
             "Succeeded",
         ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
 
+    create_training_job()
     assert_get_job()
     assert_job_status_running_success()
 
