@@ -149,17 +149,6 @@ class TrainingOperatorCharm(CharmBase):
         """
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
-            self.k8s_resource_handler.apply()
-        except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying K8S resources
-                # re-apply K8S resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying K8S resources")
-                self.logger.warning("Applying K8S resources with conflict resolution")
-                self.k8s_resource_handler.apply(force=force_conflicts)
-            else:
-                raise GenericCharmRuntimeError("K8S resources creation failed") from error
-        try:
             self.crd_resource_handler.apply()
         except ApiError as error:
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
@@ -170,6 +159,18 @@ class TrainingOperatorCharm(CharmBase):
                 self.crd_resource_handler.apply(force=force_conflicts)
             else:
                 raise GenericCharmRuntimeError("CRD resources creation failed") from error
+        try:
+            self.k8s_resource_handler.apply()
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying K8S resources
+                # re-apply K8S resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying K8S resources")
+                self.logger.warning("Applying K8S resources with conflict resolution")
+                self.k8s_resource_handler.apply(force=force_conflicts)
+            else:
+                raise GenericCharmRuntimeError("K8S resources creation failed") from error
+
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     # TODO: force_conflicts=True due to
