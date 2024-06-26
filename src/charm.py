@@ -68,7 +68,11 @@ class TrainingOperatorCharm(CharmBase):
                 {
                     "metrics_path": METRICS_PATH,
                     "static_configs": [
-                        {"targets": [f"{self._name}-workload.{self._namespace}.svc:{METRICS_PORT}"]}
+                        {
+                            "targets": [
+                                f"{self._name}-workload.{self._namespace}.svc:{METRICS_PORT}"
+                            ]
+                        }
                     ],
                 }
             ],
