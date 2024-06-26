@@ -9,18 +9,17 @@ from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRunt
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
-from lightkube.models.core_v1 import ServicePort
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
-    "src/templates/rbac_manifests.yaml.j2",
     "src/templates/deployment.yaml.j2",
+    "src/templates/rbac_manifests.yaml.j2",
+    "src/templates/secret.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
     "src/templates/crds_manifests.yaml.j2",
@@ -60,13 +59,8 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
 
-        metrics_port = ServicePort(int(METRICS_PORT), name="metrics-port")
-        self.service_patcher = KubernetesServicePatch(
-            self,
-            [metrics_port],
-            service_name=f"{self.model.app.name}",
-        )
-
+        # The target is the Service (applied with service.yamlj2) and the name has the following
+        # format: app-name-workload.namespace.svc:metrics_port
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
             relation_name="metrics-endpoint",

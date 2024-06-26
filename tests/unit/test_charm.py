@@ -50,7 +50,6 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_not_leader(
         self,
         _: MagicMock,  # k8s_resource_handler
@@ -63,7 +62,6 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_no_relation(
         self,
         _: MagicMock,  # k8s_resource_handler
@@ -78,7 +76,6 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_apply_k8s_resources_success(
         self,
         k8s_resource_handler: MagicMock,
@@ -92,7 +89,6 @@ class TestCharm:
         k8s_resource_handler.apply.assert_called()
         assert isinstance(harness.charm.model.unit.status, MaintenanceStatus)
 
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
@@ -115,7 +111,6 @@ class TestCharm:
                 ),
             )
 
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
@@ -141,7 +136,6 @@ class TestCharm:
                 ),
             )
 
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.delete_many")
@@ -158,7 +152,6 @@ class TestCharm:
         crd_resource_handler.assert_has_calls([call.render_manifests()])
         delete_many.assert_called()
 
-    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.delete_many")
