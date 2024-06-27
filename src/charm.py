@@ -19,7 +19,7 @@ from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 K8S_RESOURCE_FILES = [
     "src/templates/deployment.yaml.j2",
     "src/templates/rbac_manifests.yaml.j2",
-    "src/templates/secret.yaml.j2",
+    "src/templates/service.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
     "src/templates/crds_manifests.yaml.j2",
