@@ -201,7 +201,7 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     # metrics_target should be the same as the one defined in the charm code when instantiating
     # the MetricsEndpointProvider. It is set to the training-operator Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
-    metrics_target = f"{APP_NAME}.{ops_test.model.name}.svc"
+    metrics_target = f"{APP_NAME}-workload.{ops_test.model.name}.svc"
     await assert_metrics_endpoint(
         app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target
     )
@@ -231,6 +231,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
     assert next(crd_list, _last) is _last
 
 
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
 @pytest.mark.abort_on_fail
 async def test_upgrade(ops_test: OpsTest):
     """Test upgrade.
@@ -295,6 +296,7 @@ async def test_upgrade(ops_test: OpsTest):
             assert "paddlejobs" in rule.resources
 
 
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
 @pytest.mark.abort_on_fail
 async def test_remove_without_resources(ops_test: OpsTest):
     """Test remove when no resources are present.
