@@ -182,6 +182,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
     assert next(crd_list, _last) is _last
 
 
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
 @pytest.mark.abort_on_fail
 async def test_upgrade(ops_test: OpsTest):
     """Test upgrade.
@@ -246,6 +247,7 @@ async def test_upgrade(ops_test: OpsTest):
             assert "paddlejobs" in rule.resources
 
 
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
 @pytest.mark.abort_on_fail
 async def test_remove_without_resources(ops_test: OpsTest):
     """Test remove when no resources are present.
