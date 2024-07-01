@@ -1,0 +1,6 @@
+options:
+  training-operator-image:
+    default: kubeflow/training-operator:v1-855e096
+    description: |
+      Container image to be used by the training-operator workload.
+    type: string
