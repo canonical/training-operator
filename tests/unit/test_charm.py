@@ -50,6 +50,7 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_not_leader(
         self,
         _: MagicMock,  # k8s_resource_handler
@@ -62,6 +63,7 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_no_relation(
         self,
         _: MagicMock,  # k8s_resource_handler
@@ -76,6 +78,7 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_apply_k8s_resources_success(
         self,
         k8s_resource_handler: MagicMock,
@@ -92,6 +95,7 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_blocked_on_appierror_on_k8s_resource_handler(
         self, k8s_resource_handler: MagicMock, _: MagicMock, harness: Harness
     ):
@@ -114,6 +118,7 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_blocked_on_appierror_on_crd_resource_handler(
         self,
         k8s_resource_handler: MagicMock,
@@ -139,6 +144,7 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.delete_many")
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_on_remove_success(
         self,
         delete_many: MagicMock,
@@ -155,6 +161,7 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.delete_many")
+    @patch("charm.KubernetesServicePatch", lambda *_, **__: None)
     def test_on_remove_failure(
         self, delete_many: MagicMock, _: MagicMock, __: MagicMock, harness: Harness
     ):
