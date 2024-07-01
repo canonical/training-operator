@@ -59,7 +59,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
 
-        # The target is the Service (applied with service.yamlj2) and the name has the following
+        # The target is the Service (applied with service.yaml.j2) and the name has the following
         # format: app-name-workload.namespace.svc:metrics_port
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
