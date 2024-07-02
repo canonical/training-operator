@@ -8,7 +8,9 @@ metadata:
     prometheus.io/port: "8080"
   labels:
     app: {{ app_name }}
-  name: {{ app_name }}-workload
+  # Hardcoding this name due to /canonical/training-operator#174
+  name: training-operator
+  namespace: {{ namespace }}
 spec:
   ports:
   - name: monitoring-port
