@@ -10,7 +10,8 @@ webhooks:
       - v1
     clientConfig:
       service:
-        name: {{ app_name }}
+        # This name must correspond to the name in service.yaml.j2
+        name: {{ app_name }}-workload
         namespace: {{ namespace }}
         path: /validate-kubeflow-org-v1-mxjob
     failurePolicy: Fail
@@ -31,7 +32,8 @@ webhooks:
       - v1
     clientConfig:
       service:
-        name: {{ app_name }}
+        # This name must correspond to the name in service.yaml.j2
+        name: {{ app_name }}-workload
         namespace: {{ namespace }}
         path: /validate-kubeflow-org-v1-paddlejob
     failurePolicy: Fail
@@ -51,7 +53,8 @@ webhooks:
       - v1
     clientConfig:
       service:
-        name: {{ app_name }}
+        # This name must correspond to the name in service.yaml.j2
+        name: {{ app_name }}-workload
         namespace: {{ namespace }}
         path: /validate-kubeflow-org-v1-pytorchjob
     failurePolicy: Fail
@@ -71,7 +74,8 @@ webhooks:
       - v1
     clientConfig:
       service:
-        name: {{ app_name }}
+        # This name must correspond to the name in service.yaml.j2
+        name: {{ app_name }}-workload
         namespace: {{ namespace }}
         path: /validate-kubeflow-org-v1-tfjob
     failurePolicy: Fail
@@ -91,7 +95,8 @@ webhooks:
       - v1
     clientConfig:
       service:
-        name: {{ app_name }}
+        # This name must correspond to the name in service.yaml.j2
+        name: {{ app_name }}-workload
         namespace: {{ namespace }}
         path: /validate-kubeflow-org-v1-xgboostjob
     failurePolicy: Fail

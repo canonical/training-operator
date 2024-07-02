@@ -30,6 +30,12 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         image: {{ training_operator_image }}
+        # This argument is required because the training-operator controller will
+        # use "training-operator" by default, which in this case, is already used
+        # by the charm and cannot be used by the workload.
+        # This name should correspond to the name in service.yaml.j2
+        args:
+        - --webhook-service-name={{ app_name }}-workload
         livenessProbe:
           httpGet:
             path: /healthz
