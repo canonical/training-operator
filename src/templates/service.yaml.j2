@@ -8,6 +8,7 @@ metadata:
     prometheus.io/port: "8080"
   labels:
     app: {{ app_name }}
+  # Hardcoding this name due to /canonical/training-operator#174
   name: training-operator
   namespace: {{ namespace }}
 spec:

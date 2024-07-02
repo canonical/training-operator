@@ -73,7 +73,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.remove, self._on_remove)
 
         # The target is the Service (applied with service.yaml.j2) and the name has the following
-        # format: app-name-workload.namespace.svc:metrics_port
+        # format: app-name.namespace.svc:metrics_port
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
             relation_name="metrics-endpoint",
@@ -81,11 +81,7 @@ class TrainingOperatorCharm(CharmBase):
                 {
                     "metrics_path": METRICS_PATH,
                     "static_configs": [
-                        {
-                            "targets": [
-                                f"{self._name}-workload.{self._namespace}.svc:{METRICS_PORT}"
-                            ]
-                        }
+                        {"targets": [f"{self._name}.{self._namespace}.svc:{METRICS_PORT}"]}
                     ],
                 }
             ],
