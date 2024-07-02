@@ -16,6 +16,9 @@ resources:
     type: oci-image
     description: OCI image for training-operator
     upstream-source: kubeflow/training-operator:v1-855e096
+requires:
+  dashboard-links:
+    interface: kubeflow_dashboard_links
 provides:
   metrics-endpoint:
     interface: prometheus_scrape
