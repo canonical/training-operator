@@ -8,14 +8,6 @@ description: |
   This charm deploys the Operator configured for use with Kubeflow to
   Kubernetes models in Juju.
 docs: https://discourse.charmhub.io/t/8241
-containers:
-  training-operator:
-    resource: training-operator-image
-resources:
-  training-operator-image:
-    type: oci-image
-    description: OCI image for training-operator
-    upstream-source: kubeflow/training-operator:v1-855e096
 requires:
   dashboard-links:
     interface: kubeflow_dashboard_links

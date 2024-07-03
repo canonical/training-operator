@@ -27,8 +27,14 @@ PROFILE_NAMESPACE = "profile-example"
 PROFILE_NAME = "profile-example"
 PROFILE_FILE_PATH = basedir / "tests/integration/profile.yaml"
 PROFILE_FILE = yaml.safe_load(PROFILE_FILE_PATH.read_text())
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = "training-operator"
+
+KUBEFLOW_ROLES = "kubeflow-roles"
+KUBEFLOW_ROLES_CHANNEL = "latest/edge"
+KUBEFLOW_ROLES_TRUST = True
+KUBEFLOW_PROFILES = "kubeflow-profiles"
+KUBEFLOW_PROFILES_CHANNEL = "latest/edge"
+KUBEFLOW_PROFILES_TRUST = True
 
 log = logging.getLogger(__name__)
 
@@ -37,23 +43,19 @@ log = logging.getLogger(__name__)
 async def test_build_and_deploy(ops_test: OpsTest):
     """Build the charm and deploy."""
     charm_under_test = await ops_test.build_charm(".")
-    image_path = METADATA["resources"]["training-operator-image"]["upstream-source"]
-    resources = {"training-operator-image": image_path}
 
-    await ops_test.model.deploy(
-        charm_under_test, resources=resources, application_name=APP_NAME, trust=True
-    )
+    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
-        entity_url="kubeflow-roles",
-        channel="latest/edge",
-        trust=True,
+        entity_url=KUBEFLOW_ROLES,
+        channel=KUBEFLOW_ROLES_CHANNEL,
+        trust=KUBEFLOW_ROLES_TRUST,
     )
     await ops_test.model.deploy(
-        entity_url="kubeflow-profiles",
-        channel="latest/edge",
-        trust=True,
+        entity_url=KUBEFLOW_PROFILES,
+        channel=KUBEFLOW_PROFILES_CHANNEL,
+        trust=KUBEFLOW_PROFILES_TRUST,
     )
 
     await ops_test.model.wait_for_idle(
