@@ -1,15 +1,13 @@
-# From https://github.com/kubeflow/training-operator/blob/v1.8-branch/examples/tensorflow/mnist_with_summaries/tf_job_mnist.yaml
+# From https://github.com/kubeflow/training-operator/blob/v1.8-branch/examples/tensorflow/simple.yaml
 apiVersion: "kubeflow.org/v1"
-kind: "TFJob"
+kind: TFJob
 metadata:
-  name: "mnist"
+  name: tfjob-simple
 spec:
-  runPolicy:
-    cleanPodPolicy: None
   tfReplicaSpecs:
     Worker:
-      replicas: 1
-      restartPolicy: Never
+      replicas: 2
+      restartPolicy: OnFailure
       template:
         spec:
           containers:
@@ -18,13 +16,3 @@ spec:
               command:
                 - "python"
                 - "/var/tf_mnist/mnist_with_summaries.py"
-                - "--log_dir=/train/logs"
-                - "--learning_rate=0.01"
-                - "--batch_size=150"
-              volumeMounts:
-                - mountPath: "/train"
-                  name: "training"
-          volumes:
-            - name: "training"
-              persistentVolumeClaim:
-                claimName: "tfevent-volume"
