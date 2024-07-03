@@ -13,3 +13,6 @@ provides:
     interface: prometheus_scrape
   grafana-dashboard:
     interface: grafana_dashboard
+requires:
+  dashboard-links:
+    interface: kubeflow_dashboard_links

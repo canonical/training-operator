@@ -9,6 +9,10 @@ from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRunt
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
+    DashboardLink,
+    KubeflowDashboardLinksRequirer,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
@@ -58,6 +62,20 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
+
+        # Add documentation link to the dashboard
+        self.kubeflow_dashboard_sidebar = KubeflowDashboardLinksRequirer(
+            charm=self,
+            relation_name="dashboard-links",
+            dashboard_links=[
+                DashboardLink(
+                    text="Kubeflow Training Operator Documentation",
+                    link="https://www.kubeflow.org/docs/components/training/",
+                    desc="Documentation for Kubeflow Training Operator",
+                    location="documentation",
+                ),
+            ],
+        )
 
         # The target is the Service (applied with service.yaml.j2) and the name has the following
         # format: app-name-workload.namespace.svc:metrics_port
