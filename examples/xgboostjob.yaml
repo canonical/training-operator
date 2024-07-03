@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v1
 kind: XGBoostJob
 metadata:
-  name: xgboost-simple
+  name: xgboost-dist-iris-test-train
 spec:
   xgbReplicaSpecs:
     Master:
@@ -11,7 +11,7 @@ spec:
         spec:
           containers:
           - name: xgboost
-            image: docker.io/merlintang/xgboost-dist-iris:1.1
+            image: docker.io/kubeflow/xgboost-dist-iris:latest
             ports:
             - containerPort: 9991
               name: xgboostjob-port
@@ -30,7 +30,7 @@ spec:
         spec:
           containers:
           - name: xgboost
-            image: docker.io/merlintang/xgboost-dist-iris:1.1
+            image: docker.io/kubeflow/xgboost-dist-iris:latest
             ports:
             - containerPort: 9991
               name: xgboostjob-port
