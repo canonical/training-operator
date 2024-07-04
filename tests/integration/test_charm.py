@@ -51,6 +51,41 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
+    # Wait for the training-operator workload Pod to run and the operator to start
+    await ensure_training_operator_is_running(ops_test)
+
+
+@tenacity.retry(
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
+    stop=tenacity.stop_after_delay(30),
+    reraise=True,
+)
+async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
+    """Waits until the training-operator workload Pod's status is Running."""
+    # The training-operator workload Pod gets a random name, the easiest way
+    # to wait for it to be ready is using kubectl directly
+    await ops_test.run(
+        "kubectl",
+        "wait",
+        "--for=condition=ready",
+        "pod",
+        "-lapp.kubernetes.io/name=training-operator",
+        f"-n{ops_test.model_name}",
+        "--timeout=10m",
+        check=True,
+    )
+
+    _, out, err = await ops_test.run(
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{ops_test.model_name}",
+        "--field-selector",
+        "status.phase!=Running",
+        check=True,
+    )
+    assert "training-operator" not in out
+
 
 def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
@@ -86,8 +121,21 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     job_object = lightkube.codecs.load_all_yaml(yaml.dump(job_yaml))[0]
     job_class = JOBS_CLASSES[job_object.kind]
 
-    # Create *Job and check if it exists where expected
-    lightkube_client.create(job_object, namespace=namespace)
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(30),
+        reraise=True,
+    )
+    def create_training_job():
+        """Create the training job.
+
+        Retry if there is an error when creating the Job.
+        The training-operator may not be ready (even though the Pod shows a Running status,
+        this retry allows the create command to fail a couple times to allow the operator to
+        start all validatingwebhooks for each training job type.
+        """
+        # Create *Job and check if it exists where expected
+        lightkube_client.create(job_object, namespace=namespace)
 
     # Allow the resource to be created
     @tenacity.retry(
@@ -129,6 +177,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
             "Succeeded",
         ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
 
+    create_training_job()
     assert_get_job()
     assert_job_status_running_success()
 
