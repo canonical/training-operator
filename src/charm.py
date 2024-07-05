@@ -21,8 +21,10 @@ from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
-    "src/templates/deployment.yaml.j2",
     "src/templates/rbac_manifests.yaml.j2",
+    "src/templates/secret.yaml.j2",
+    "src/templates/deployment.yaml.j2",
+    "src/templates/validatingwebhookconfiguration.yaml.j2",
     "src/templates/service.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
@@ -30,6 +32,8 @@ CRD_RESOURCE_FILES = [
 ]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
+WEBHOOK_PORT = "443"
+WEBHOOK_TARGET_PORT = "9443"
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,8 @@ class TrainingOperatorCharm(CharmBase):
             "app_name": self._name,
             "training_operator_image": self._image,
             "metrics_port": METRICS_PORT,
+            "webhook_port": WEBHOOK_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
         }
 
         self._k8s_resource_handler = None
@@ -154,17 +160,6 @@ class TrainingOperatorCharm(CharmBase):
         """
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
-            self.k8s_resource_handler.apply()
-        except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying K8S resources
-                # re-apply K8S resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying K8S resources")
-                self.logger.warning("Applying K8S resources with conflict resolution")
-                self.k8s_resource_handler.apply(force=force_conflicts)
-            else:
-                raise GenericCharmRuntimeError("K8S resources creation failed") from error
-        try:
             self.crd_resource_handler.apply()
         except ApiError as error:
             if self._check_and_report_k8s_conflict(error) and force_conflicts:
@@ -175,6 +170,18 @@ class TrainingOperatorCharm(CharmBase):
                 self.crd_resource_handler.apply(force=force_conflicts)
             else:
                 raise GenericCharmRuntimeError("CRD resources creation failed") from error
+        try:
+            self.k8s_resource_handler.apply()
+        except ApiError as error:
+            if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                # conflict detected when applying K8S resources
+                # re-apply K8S resources with forced conflict resolution
+                self.unit.status = MaintenanceStatus("Force applying K8S resources")
+                self.logger.warning("Applying K8S resources with conflict resolution")
+                self.k8s_resource_handler.apply(force=force_conflicts)
+            else:
+                raise GenericCharmRuntimeError("K8S resources creation failed") from error
+
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     # TODO: force_conflicts=True due to

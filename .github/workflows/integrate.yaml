@@ -8,25 +8,12 @@ on:
         required: true
 
 jobs:
-  lib-check:
-    name: Check libraries
+  quality-checks:
+    name: Quality checks
     uses: canonical/charmed-kubeflow-workflows/.github/workflows/_quality-checks.yaml@main
     secrets: inherit
     with:
         charm-path: "."
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-20.04
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v3
-
-    - name: Install dependencies
-      run: pip install tox
-
-    - name: Lint code
-      run: tox -vve lint
 
   unit-test:
     name: Unit
@@ -42,7 +29,7 @@ jobs:
         run: tox -e unit
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: training-operator-cov_html
@@ -70,7 +57,7 @@ jobs:
           channel: 1.29-strict/stable
           microk8s-addons: "dns hostpath-storage rbac metallb:10.64.140.43-10.64.140.49"
           charmcraft-channel: latest/stable
-          juju-channel: 3.5/stable
+          juju-channel: 3.4/stable
 
       - name: Run integration tests
         run: sg snap_microk8s -c "tox -e ${{ matrix.tox-environments }} -- --model testing"
@@ -88,8 +75,20 @@ jobs:
         run: juju status
         if: failure()
 
-      - name: Get workload logs
-        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ccharm
+      - name: Get validatingwebhookconfigurations
+        run: kubectl get validatingwebhookconfigurations validator.training-operator.kubeflow.org -oyaml
+        if: failure()
+
+      - name: Get secret
+        run: kubectl get secret -ntesting training-operator-webhook-cert -oyaml
+        if: failure()
+
+      - name: Describe pod
+        run: kubectl describe pod -ntesting -lapp.kubernetes.io/name=training-operator
+        if: failure()
+
+      - name: Get pods
+        run: kubectl get pods -A
         if: failure()
 
       - name: Get operator logs

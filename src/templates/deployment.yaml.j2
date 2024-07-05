@@ -30,6 +30,12 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         image: {{ training_operator_image }}
+        # This argument is required because the training-operator controller will
+        # use "training-operator" by default, which in this case, is already used
+        # by the charm and cannot be used by the workload.
+        # This name should correspond to the name in service.yaml.j2
+        args:
+        - --webhook-service-name={{ app_name }}-workload
         livenessProbe:
           httpGet:
             path: /healthz
@@ -39,7 +45,10 @@ spec:
           timeoutSeconds: 3
         name: {{ app_name }}
         ports:
-        - containerPort: 8080
+        - containerPort: {{ metrics_port }}
+        - containerPort: {{ webhook_target_port }}
+          name: webhook-server
+          protocol: TCP
         readinessProbe:
           httpGet:
             path: /readyz
@@ -49,5 +58,14 @@ spec:
           timeoutSeconds: 3
         securityContext:
           allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
       serviceAccountName: {{ app_name }}-workload
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: {{ app_name }}-webhook-cert
