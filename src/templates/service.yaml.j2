@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+  labels:
+    app: {{ app_name }}
+  name: {{ app_name }}-workload
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: monitoring-port
+    port: {{ metrics_port }}
+    targetPort: {{ metrics_port }}
+  - name: webhook-server
+    port: {{ webhook_port }}
+    protocol: TCP
+    targetPort: {{ webhook_target_port }}
+  selector:
+    control-plane: {{ namespace }}-{{ app_name }}
+  type: ClusterIP

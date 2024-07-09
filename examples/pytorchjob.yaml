@@ -1,3 +1,4 @@
+# From https://github.com/kubeflow/training-operator/blob/v1.8-branch/examples/pytorch/simple.yaml
 apiVersion: "kubeflow.org/v1"
 kind: PyTorchJob
 metadata:

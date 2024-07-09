@@ -75,8 +75,20 @@ jobs:
         run: juju status
         if: failure()
 
-      - name: Get workload logs
-        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ccharm
+      - name: Get validatingwebhookconfigurations
+        run: kubectl get validatingwebhookconfigurations validator.training-operator.kubeflow.org -oyaml
+        if: failure()
+
+      - name: Get secret
+        run: kubectl get secret -ntesting training-operator-webhook-cert -oyaml
+        if: failure()
+
+      - name: Describe pod
+        run: kubectl describe pod -ntesting -lapp.kubernetes.io/name=training-operator
+        if: failure()
+
+      - name: Get pods
+        run: kubectl get pods -A
         if: failure()
 
       - name: Get operator logs
