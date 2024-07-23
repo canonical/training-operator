@@ -12,3 +12,4 @@ bases:
 parts:
   charm:
     charm-python-packages: [setuptools, pip]
+    charm-binary-python-packages: [jinja2]
