@@ -1,6 +1,6 @@
 options:
   training-operator-image:
-    default: charmedkubeflow/training-operator:1.8.0-ddaf82a
+    default: charmedkubeflow/training-operator:1.8.0-a40b4cf
     description: |
       Container image to be used by the training-operator workload.
     type: string
