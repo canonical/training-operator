@@ -1,6 +1,6 @@
 options:
   training-operator-image:
-    default: kubeflow/training-operator:v1-9e52eb7
+    default: charmedkubeflow/training-operator:1.8.0-a40b4cf
     description: |
       Container image to be used by the training-operator workload.
     type: string
