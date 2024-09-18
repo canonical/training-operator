@@ -4,3 +4,6 @@ __pycache__
 .tox
 .coverage
 *.charm
+venv/
+.terraform*
+*.tfstate*
