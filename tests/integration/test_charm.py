@@ -239,7 +239,7 @@ async def test_upgrade(ops_test: OpsTest):
     Verify that all upgrade process succeeds.
 
     There should be no charm with APP_NAME deployed (after test_remove_with_resources_present()),
-    because it deploys stable version of this charm and peforms upgrade.
+    because it deploys stable version of this charm and performs upgrade.
     """
 
     # deploy stable version of the charm
