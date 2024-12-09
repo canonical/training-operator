@@ -201,10 +201,7 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     # metrics_target should be the same as the one defined in the charm code when instantiating
     # the MetricsEndpointProvider. It is set to the training-operator Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
-    metrics_target = f"{APP_NAME}-workload.{ops_test.model.name}.svc"
-    await assert_metrics_endpoint(
-        app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target
-    )
+    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 @pytest.mark.abort_on_fail
