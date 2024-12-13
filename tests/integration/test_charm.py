@@ -201,10 +201,7 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     # metrics_target should be the same as the one defined in the charm code when instantiating
     # the MetricsEndpointProvider. It is set to the training-operator Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
-    metrics_target = f"{APP_NAME}-workload.{ops_test.model.name}.svc"
-    await assert_metrics_endpoint(
-        app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH, metrics_target=metrics_target
-    )
+    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 @pytest.mark.abort_on_fail
@@ -239,7 +236,7 @@ async def test_upgrade(ops_test: OpsTest):
     Verify that all upgrade process succeeds.
 
     There should be no charm with APP_NAME deployed (after test_remove_with_resources_present()),
-    because it deploys stable version of this charm and peforms upgrade.
+    because it deploys stable version of this charm and performs upgrade.
     """
 
     # deploy stable version of the charm
