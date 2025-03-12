@@ -94,7 +94,7 @@ jobs:
           juju-channel: 3.6/stable
 
       - name: Run integration tests
-        run: tox -e ${{ matrix.tox-environments }} -- --model testing"
+        run: tox -e ${{ matrix.tox-environments }} -- --model testing
 
       - name: Capture k8s resources on failure
         run: |
