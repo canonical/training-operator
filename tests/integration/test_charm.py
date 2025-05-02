@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 APP_NAME = "training-operator"
 CHARM_LOCATION = None
-APP_PREVIOUS_CHANNEL = "1.7/stable"
+APP_PREVIOUS_CHANNEL = "1.8/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
 

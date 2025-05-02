@@ -30,10 +30,10 @@ PROFILE_FILE = yaml.safe_load(PROFILE_FILE_PATH.read_text())
 APP_NAME = "training-operator"
 
 KUBEFLOW_ROLES = "kubeflow-roles"
-KUBEFLOW_ROLES_CHANNEL = "latest/edge"
+KUBEFLOW_ROLES_CHANNEL = "1.10/stable"
 KUBEFLOW_ROLES_TRUST = True
 KUBEFLOW_PROFILES = "kubeflow-profiles"
-KUBEFLOW_PROFILES_CHANNEL = "latest/edge"
+KUBEFLOW_PROFILES_CHANNEL = "1.10/stable"
 KUBEFLOW_PROFILES_TRUST = True
 
 log = logging.getLogger(__name__)
