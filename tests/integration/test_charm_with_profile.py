@@ -8,6 +8,7 @@ from pathlib import Path
 import lightkube
 import pytest
 import yaml
+from charms_dependencies import ISTIO_PILOT, KUBEFLOW_PROFILES, KUBEFLOW_ROLES
 from lightkube import codecs
 from lightkube.generic_resource import create_global_resource
 from lightkube.resources.core_v1 import ServiceAccount
@@ -29,12 +30,6 @@ PROFILE_FILE_PATH = basedir / "tests/integration/profile.yaml"
 PROFILE_FILE = yaml.safe_load(PROFILE_FILE_PATH.read_text())
 APP_NAME = "training-operator"
 
-KUBEFLOW_ROLES = "kubeflow-roles"
-KUBEFLOW_ROLES_CHANNEL = "latest/edge"
-KUBEFLOW_ROLES_TRUST = True
-KUBEFLOW_PROFILES = "kubeflow-profiles"
-KUBEFLOW_PROFILES_CHANNEL = "latest/edge"
-KUBEFLOW_PROFILES_TRUST = True
 
 log = logging.getLogger(__name__)
 
@@ -46,16 +41,22 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
 
+    # Istio pilot is needed for kubeflow-profiles to work properly
+    await ops_test.model.deploy(
+        entity_url=ISTIO_PILOT.charm,
+        channel=ISTIO_PILOT.channel,
+        trust=ISTIO_PILOT.trust,
+    )
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
-        entity_url=KUBEFLOW_ROLES,
-        channel=KUBEFLOW_ROLES_CHANNEL,
-        trust=KUBEFLOW_ROLES_TRUST,
+        entity_url=KUBEFLOW_ROLES.charm,
+        channel=KUBEFLOW_ROLES.channel,
+        trust=KUBEFLOW_ROLES.trust,
     )
     await ops_test.model.deploy(
-        entity_url=KUBEFLOW_PROFILES,
-        channel=KUBEFLOW_PROFILES_CHANNEL,
-        trust=KUBEFLOW_PROFILES_TRUST,
+        entity_url=KUBEFLOW_PROFILES.charm,
+        channel=KUBEFLOW_PROFILES.channel,
+        trust=KUBEFLOW_PROFILES.trust,
     )
 
     await ops_test.model.wait_for_idle(
