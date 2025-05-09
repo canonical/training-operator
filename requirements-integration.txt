@@ -6,8 +6,6 @@
 #
 anyio==4.5.2
     # via httpx
-appnope==0.1.4
-    # via ipython
 asttokens==3.0.0
     # via stack-data
 attrs==24.2.0
@@ -30,7 +28,7 @@ cffi==1.17.1
     # via
     #   cryptography
     #   pynacl
-charmed-kubeflow-chisme==0.4.6
+charmed-kubeflow-chisme==0.4.9
     # via -r requirements-integration.in
 charset-normalizer==3.4.0
     # via requests
