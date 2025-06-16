@@ -56,7 +56,7 @@ juju add-model dev
 # Enable DEBUG logging
 juju model-config logging-config="<root>=INFO;unit=DEBUG"
 # Deploy the charm
-juju deploy ./training-operator_ubuntu-20.04-amd64.charm \
+juju deploy ./training-operator_ubuntu@24.04-amd64.charm \
     --resource oci-image=$(yq '.resources."training-operator-image"."upstream-source"' metadata.yaml)
 
 ## Canonical Contributor Agreement
