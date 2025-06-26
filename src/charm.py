@@ -16,8 +16,8 @@ from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
+from ops import main
 from ops.charm import CharmBase
-from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [

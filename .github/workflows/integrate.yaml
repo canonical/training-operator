@@ -21,12 +21,10 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v4
-
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v5.3.0
-      with:
-        python-version: 3.8
-
+    - name: Set up Python 3.12
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
     - name: Install dependencies
       run: pip install tox
 
@@ -38,13 +36,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
-
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5.3.0
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5.6.0
         with:
-          python-version: 3.8
-
+          python-version: "3.12"
       - name: Install dependencies
         run: pip install tox
 
@@ -70,19 +66,14 @@ jobs:
     strategy:
       matrix:
         tox-environments:
-          - charm-integration
+          - integration
           - integration-with-profiles
     steps:
       - name: Maximise GH runner space
         uses: jlumbroso/free-disk-space@v1.3.1
 
       - name: Check out code
-        uses: actions/checkout@v3
-
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5.3.0
-        with:
-          python-version: 3.8
+        uses: actions/checkout@v4
 
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
