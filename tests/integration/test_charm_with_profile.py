@@ -35,6 +35,9 @@ KUBEFLOW_ROLES_TRUST = True
 KUBEFLOW_PROFILES = "kubeflow-profiles"
 KUBEFLOW_PROFILES_CHANNEL = "latest/edge"
 KUBEFLOW_PROFILES_TRUST = True
+ISTIO_PILOT_NAME = "istio-pilot"
+ISTIO_PILOT_CHANNEL = "latest/edge"
+ISTIO_PILOT_TRUST = True
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +59,14 @@ async def test_build_and_deploy(ops_test: OpsTest):
         entity_url=KUBEFLOW_PROFILES,
         channel=KUBEFLOW_PROFILES_CHANNEL,
         trust=KUBEFLOW_PROFILES_TRUST,
+    )
+
+    # The profile controller needs AuthorizationPolicies to create Profiles
+    # Let's just deploy istio-pilot to provide the k8s cluster with this CRD
+    await ops_test.model.deploy(
+        entity_url=ISTIO_PILOT_NAME,
+        channel=ISTIO_PILOT_CHANNEL,
+        trust=ISTIO_PILOT_TRUST,
     )
 
     await ops_test.model.wait_for_idle(
