@@ -1,6 +1,6 @@
 options:
   training-operator-image:
-    default: charmedkubeflow/training-operator:1.9.0-bf1ad8d
+    default: docker.io/charmedkubeflow/training-operator:1.9.0-1255c22
     description: |
       Container image to be used by the training-operator workload.
     type: string
