@@ -65,21 +65,16 @@ jobs:
         uses: jlumbroso/free-disk-space@v1.3.1
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pipx install tox
 
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5.3.0
-        with:
-          python-version: 3.8
-
-      - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@main
-        with:
-          provider: microk8s
-          channel: 1.32-strict/stable
-          microk8s-addons: "dns hostpath-storage rbac metallb:10.64.140.43-10.64.140.49"
-          charmcraft-channel: 3.x/stable
-          juju-channel: 3.6/stable
+      - name: Setup environment
+        run: |
+          sudo apt-get remove -y docker-ce docker-ce-cli containerd.io
+          sudo rm -rf /run/containerd
+          sudo snap install concierge --classic
+          sudo concierge prepare --trace
 
       - name: Run integration tests
         run: tox -e ${{ matrix.tox-environments }} -- --model testing
