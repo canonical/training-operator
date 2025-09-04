@@ -49,7 +49,7 @@ optional = true
 charmed-kubeflow-chisme = "^0.4.6"
 cosl = "^0.0.50"
 jinja2 = "^3.1.4"
-lightkube = "^0.15.6"
+lightkube = "^0.17.0"
 lightkube-models = "^1.31.1.8"
 ops = "^2.17.1"
 
@@ -78,7 +78,7 @@ optional = true
 
 [tool.poetry.group.unit.dependencies]
 coverage = "^7.6.1"
-lightkube = "^0.15.6"
+lightkube = "^0.17.0"
 ops = "^2.17.1"
 pytest = "^8.3.4"
 
@@ -88,7 +88,7 @@ optional = true
 [tool.poetry.group.integration.dependencies]
 charmed-kubeflow-chisme = ">=0.4.11"
 juju = "<4.0"
-lightkube = "^0.15.6"
+lightkube = "^0.17.0"
 pytest = "^8.3.4"
 pytest-operator = "^0.38.0"
 pyyaml = "^6.0.2"
