@@ -58,7 +58,7 @@ jobs:
     strategy:
       matrix:
         tox-environments:
-          - charm-integration
+          - integration
           - integration-with-profiles
     steps:
       - name: Maximise GH runner space

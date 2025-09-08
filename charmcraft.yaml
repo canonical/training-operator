@@ -1,14 +1,18 @@
-# Copyright 2021 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-type: "charm"
-bases:
-  - build-on:
-    - name: "ubuntu"
-      channel: "20.04"
-    run-on:
-    - name: "ubuntu"
-      channel: "20.04"
+type: charm
+platforms:
+  ubuntu@24.04:amd64:
+
+# Files implicitly created by charmcraft without a part:
+# - dispatch (https://github.com/canonical/charmcraft/pull/1898)
+# - manifest.yaml
+#   (https://github.com/canonical/charmcraft/blob/9ff19c328e23b50cc06f04e8a5ad4835740badf4/charmcraft/services/package.py#L259)
+# Files implicitly copied/"staged" by charmcraft without a part:
+# - actions.yaml, config.yaml, metadata.yaml
+#   (https://github.com/canonical/charmcraft/blob/9ff19c328e23b50cc06f04e8a5ad4835740badf4/charmcraft/services/package.py#L290-L293
+#   https://github.com/canonical/charmcraft/blob/9ff19c328e23b50cc06f04e8a5ad4835740badf4/charmcraft/services/package.py#L156-L157)
 parts:
   # "poetry-deps" part name is a magic constant
   # https://github.com/canonical/craft-parts/pull/901
