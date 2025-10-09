@@ -1,6 +1,6 @@
-# Terraform module for training-operator
+# Terraform module for Kubeflow Trainer
 
-This is a Terraform module facilitating the deployment of the training-operator charm, using the [Terraform juju provider](https://github.com/juju/terraform-provider-juju/). For more information, refer to the provider [documentation](https://registry.terraform.io/providers/juju/juju/latest/docs). 
+This is a Terraform module facilitating the deployment of the Kubeflow Trainer charm, using the [Terraform juju provider](https://github.com/juju/terraform-provider-juju/). For more information, refer to the provider [documentation](https://registry.terraform.io/providers/juju/juju/latest/docs). 
 
 ## Requirements
 This module requires a `juju` model to be available. Refer to the [usage section](#usage) below for more details.
@@ -40,7 +40,7 @@ resource "juju_model" "testing" {
   name = kubeflow
 }
 
-module "training-operator" {
+module "kubeflow-trainer" {
   source = "<path-to-this-directory>"
   model_name = juju_model.testing.name
 }
@@ -53,7 +53,7 @@ data "juju_model" "testing" {
   name = var.model_name
 }
 
-module "training-operator" {
+module "kubeflow-trainer" {
   source = "<path-to-this-directory>"
   model_name = data.juju_model.testing.name
 }

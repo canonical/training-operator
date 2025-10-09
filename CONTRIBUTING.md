@@ -54,14 +54,14 @@ juju add-model dev
 juju model-config logging-config="<root>=INFO;unit=DEBUG"
 # Deploy the charm
 juju deploy ./training-operator_ubuntu@24.04-amd64.charm \
-    --resource training-operator-image=$(yq '.resources."training-operator-image"."upstream-source"' metadata.yaml)
+    --resource trainer-image=$(yq '.resources."trainer-image"."upstream-source"' metadata.yaml)
 ```
 
 ## Updating the charm for new versions of the workload
 
-To upgrade the source and resources Charmed Training Operator, you must:
+To upgrade the source and resources Charmed Trainer, you must:
 
-1) Bump the `training-operator-image` in `metadata.yaml`
+1) Bump the `trainer-image` in `metadata.yaml`
 2) Update the charm source for any changes, such as:
 
 * YAML manifests in src/ and/or any Kubernetes resource in pod_spec
@@ -77,7 +77,7 @@ The following table collects a series of links and information that can help in 
 
 ## Canonical Contributor Agreement
 
-Canonical welcomes contributions to the Charmed Training Operator. Please check out our [contributor agreement](https://ubuntu.com/legal/contributors) if you're interested in contributing to the solution.
+Canonical welcomes contributions to the Charmed Trainer. Please check out our [contributor agreement](https://ubuntu.com/legal/contributors) if you're interested in contributing to the solution.
 
 
 ## How to Manage Python Dependencies and Environments

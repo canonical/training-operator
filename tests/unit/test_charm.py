@@ -50,10 +50,12 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     def test_not_leader(
         self,
         _: MagicMock,  # k8s_resource_handler
-        ___: MagicMock,  # crd_resource_handler
+        __: MagicMock,  # crd_resource_handler
+        ___: MagicMock,  # training_runtimes_resource_handler
         harness: Harness,
     ):
         """Test not a leader scenario."""
@@ -62,10 +64,12 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     def test_no_relation(
         self,
         _: MagicMock,  # k8s_resource_handler
-        ___: MagicMock,  # crd_resource_handler
+        __: MagicMock,  # crd_resource_handler
+        ___: MagicMock,  # training_runtimes_resource_handler
         harness: Harness,
     ):
         """Test no relation scenario."""
@@ -76,24 +80,28 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     def test_apply_k8s_resources_success(
         self,
         k8s_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
+        training_runtimes_resource_handler: MagicMock,
         harness: Harness,
     ):
         """Test if K8S resource handler is executed as expected."""
         harness.begin()
         harness.charm._apply_k8s_resources()
         crd_resource_handler.apply.assert_called()
+        training_runtimes_resource_handler.apply.assert_called()
         k8s_resource_handler.apply.assert_called()
         assert isinstance(harness.charm.model.unit.status, MaintenanceStatus)
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
     def test_blocked_on_appierror_on_k8s_resource_handler(
-        self, k8s_resource_handler: MagicMock, _: MagicMock, harness: Harness
+        self, k8s_resource_handler: MagicMock, _: MagicMock, __: MagicMock, harness: Harness
     ):
         # Ensure the unit is in BlockedStatus
         # on exception when creating auth resources
@@ -113,11 +121,13 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
     def test_blocked_on_appierror_on_crd_resource_handler(
         self,
-        k8s_resource_handler: MagicMock,
+        _: MagicMock,
         crd_resource_handler: MagicMock,
+        __: MagicMock,
         harness: Harness,
     ):
         # Ensure the unit is in BlockedStatus
@@ -138,25 +148,56 @@ class TestCharm:
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.ApiError", _FakeApiError)
+    def test_blocked_on_appierror_on_training_runtimes_resource_handler(
+        self,
+        _: MagicMock,
+        __: MagicMock,
+        training_runtimes_resource_handler: MagicMock,
+        harness: Harness,
+    ):
+        # Ensure the unit is in BlockedStatus
+        # on exception when creating TrainingRuntime resources
+        training_runtimes_resource_handler.side_effect = _FakeApiError()
+
+        harness.begin()
+        try:
+            harness.charm.on.install.emit()
+        except ApiError:
+            self.assertEqual(
+                harness.charm.unit.status,
+                BlockedStatus(
+                    f"Creating/patching resources failed with code"
+                    f"{training_runtimes_resource_handler.side_effect.response.code}."
+                ),
+            )
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.delete_many")
     def test_on_remove_success(
         self,
         delete_many: MagicMock,
         k8s_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
+        training_runtimes_resource_handler: MagicMock,
         harness: Harness,
     ):
         harness.begin()
         harness.charm.on.remove.emit()
         k8s_resource_handler.assert_has_calls([call.render_manifests()])
         crd_resource_handler.assert_has_calls([call.render_manifests()])
+        training_runtimes_resource_handler.assert_has_calls([call.render_manifests()])
         delete_many.assert_called()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.delete_many")
     def test_on_remove_failure(
-        self, delete_many: MagicMock, _: MagicMock, __: MagicMock, harness: Harness
+        self, delete_many: MagicMock, _: MagicMock, __: MagicMock, ___: MagicMock, harness: Harness
     ):
         delete_many.side_effect = _FakeApiError()
         harness.begin()

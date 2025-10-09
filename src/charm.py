@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Copyright 2021 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 #
 
 import logging
+import time
 
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
@@ -21,15 +22,24 @@ from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
-    "src/templates/rbac_manifests.yaml.j2",
-    "src/templates/secret.yaml.j2",
-    "src/templates/deployment.yaml.j2",
-    "src/templates/validatingwebhookconfiguration.yaml.j2",
-    "src/templates/service.yaml.j2",
+    "src/templates/trainer-rbac_manifests.yaml.j2",
+    "src/templates/trainer-secret.yaml.j2",
+    "src/templates/trainer-deployment.yaml.j2",
+    "src/templates/trainer-validatingwebhookconfiguration.yaml.j2",
+    "src/templates/trainer-service.yaml.j2",
+    "src/templates/jobset-rbac_manifests.yaml.j2",
+    "src/templates/jobset-secret.yaml.j2",
+    "src/templates/jobset-configmap.yaml.j2",
+    "src/templates/jobset-deployment.yaml.j2",
+    "src/templates/jobset-validatingwebhookconfiguration.yaml.j2",
+    "src/templates/jobset-mutatingwebhookconfiguration.yaml.j2",
+    "src/templates/jobset-service.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
-    "src/templates/crds_manifests.yaml.j2",
+    "src/templates/trainer-crds_manifests.yaml.j2",
+    "src/templates/jobset-crds_manifests.yaml.j2",
 ]
+TRAINING_RUNTIMES_FILES = ["src/training_runtimes/torch_distributed.yaml.j2"]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
 WEBHOOK_PORT = "443"
@@ -45,14 +55,14 @@ class TrainingOperatorCharm(CharmBase):
         super().__init__(*args)
 
         self.logger = logging.getLogger(__name__)
-        self._image = self.config["training-operator-image"]
+        self._image = self.config["kubeflow-trainer-image"]
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._lightkube_field_manager = "lightkube"
         self._context = {
             "namespace": self._namespace,
             "app_name": self._name,
-            "training_operator_image": self._image,
+            "kubeflow_trainer_image": self._image,
             "metrics_port": METRICS_PORT,
             "webhook_port": WEBHOOK_PORT,
             "webhook_target_port": WEBHOOK_TARGET_PORT,
@@ -60,6 +70,7 @@ class TrainingOperatorCharm(CharmBase):
 
         self._k8s_resource_handler = None
         self._crd_resource_handler = None
+        self._training_runtimes_resource_handler = None
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
@@ -75,9 +86,9 @@ class TrainingOperatorCharm(CharmBase):
             relation_name="dashboard-links",
             dashboard_links=[
                 DashboardLink(
-                    text="Kubeflow Training Operator Documentation",
-                    link="https://www.kubeflow.org/docs/components/training/",
-                    desc="Documentation for Kubeflow Training Operator",
+                    text="Kubeflow Trainer Documentation",
+                    link="https://www.kubeflow.org/docs/components/trainer/",
+                    desc="Documentation for Kubeflow Trainer",
                     location="documentation",
                 ),
             ],
@@ -136,6 +147,25 @@ class TrainingOperatorCharm(CharmBase):
     def crd_resource_handler(self, handler: KubernetesResourceHandler):
         self._crd_resource_handler = handler
 
+    @property
+    def training_runtimes_resource_handler(self):
+        """Update K8S with TrainingRuntime resources."""
+        if not self._training_runtimes_resource_handler:
+            self._training_runtimes_resource_handler = KubernetesResourceHandler(
+                field_manager=self._lightkube_field_manager,
+                template_files=TRAINING_RUNTIMES_FILES,
+                context=self._context,
+                logger=self.logger,
+            )
+        load_in_cluster_generic_resources(
+            self._training_runtimes_resource_handler.lightkube_client
+        )
+        return self._training_runtimes_resource_handler
+
+    @training_runtimes_resource_handler.setter
+    def training_runtimes_resource_handler(self, handler: KubernetesResourceHandler):
+        self._training_runtimes_resource_handler = handler
+
     def _check_leader(self):
         """Check if this unit is a leader."""
         if not self.unit.is_leader():
@@ -182,6 +212,36 @@ class TrainingOperatorCharm(CharmBase):
             else:
                 raise GenericCharmRuntimeError("K8S resources creation failed") from error
 
+        for i in range(0, 3):
+            while True:
+                try:
+                    self.training_runtimes_resource_handler.apply()
+                except ApiError as error:
+                    if self._check_and_report_k8s_conflict(error) and force_conflicts:
+                        # conflict detected when applying TrainingRuntime resources
+                        # re-apply TrainingRuntime resources with forced conflict resolution
+                        self.unit.status = MaintenanceStatus(
+                            "Force applying TrainingRuntime resources"
+                        )
+                        self.logger.warning(
+                            "Applying TrainingRuntime resources with conflict resolution"
+                        )
+                        self.training_runtimes_resource_handler.apply(force=force_conflicts)
+                    if error.status.code == 500:
+                        if i > 10:
+                            raise GenericCharmRuntimeError(
+                                "TrainingRuntime resources creation failed"
+                            ) from error
+                        self.logger.warning("Validator not up yet")
+                        i += 1
+                        time.sleep(10)
+                        # self.training_runtimes_resource_handler.apply(force=force_conflicts)
+                    else:
+                        raise GenericCharmRuntimeError(
+                            "TrainingRuntime resources creation failed"
+                        ) from error
+                break
+
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
     # TODO: force_conflicts=True due to
@@ -225,7 +285,14 @@ class TrainingOperatorCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Removing K8S resources")
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
+        training_runtimes_resources_manifests = (
+            self.training_runtimes_resource_handler.render_manifests()
+        )
         try:
+            delete_many(
+                self.training_runtimes_resource_handler.lightkube_client,
+                training_runtimes_resources_manifests,
+            )
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as error:

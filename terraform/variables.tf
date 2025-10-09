@@ -1,7 +1,7 @@
 variable "app_name" {
   description = "Application name"
   type        = string
-  default     = "training-operator"
+  default     = "kubeflow-trainer"
 }
 
 variable "channel" {

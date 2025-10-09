@@ -1,0 +1,15 @@
+apiVersion: v1
+data:
+  controller_manager_config.yaml: |
+    apiVersion: config.jobset.x-k8s.io/v1alpha1
+    kind: Configuration
+    leaderElection:
+      leaderElect: true
+    internalCertManagement:
+      enable: true
+      webhookServiceName: {{ app_name }}-jobset-webhook-service
+      webhookSecretName: {{ app_name }}-jobset-webhook-server-cert
+kind: ConfigMap
+metadata:
+  name: {{ app_name }}-jobset-manager-config
+  namespace: {{ namespace }}

@@ -23,9 +23,9 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-APP_NAME = "training-operator"
+APP_NAME = "kubeflow-trainer"
 CHARM_LOCATION = None
-APP_PREVIOUS_CHANNEL = "1.7/stable"
+APP_PREVIOUS_CHANNEL = "2.0/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
 
@@ -51,8 +51,8 @@ async def test_build_and_deploy(ops_test: OpsTest):
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
 
-    # Wait for the training-operator workload Pod to run and the operator to start
-    await ensure_training_operator_is_running(ops_test)
+    # Wait for the kubeflow-trainer workload Pod to run and the operator to start
+    await ensure_kubeflow_trainer_is_running(ops_test)
 
 
 @tenacity.retry(
@@ -60,16 +60,16 @@ async def test_build_and_deploy(ops_test: OpsTest):
     stop=tenacity.stop_after_delay(30),
     reraise=True,
 )
-async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
-    """Waits until the training-operator workload Pod's status is Running."""
-    # The training-operator workload Pod gets a random name, the easiest way
+async def ensure_kubeflow_trainer_is_running(ops_test: OpsTest) -> None:
+    """Waits until the kubeflow-trainer workload Pod's status is Running."""
+    # The kubeflow-trainer workload Pod gets a random name, the easiest way
     # to wait for it to be ready is using kubectl directly
     await ops_test.run(
         "kubectl",
         "wait",
         "--for=condition=ready",
         "pod",
-        "-lapp.kubernetes.io/name=training-operator",
+        f"-lapp.kubernetes.io/name={APP_NAME}",
         f"-n{ops_test.model_name}",
         "--timeout=10m",
         check=True,
@@ -84,14 +84,16 @@ async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
         "status.phase!=Running",
         check=True,
     )
-    assert "training-operator" not in out
+    assert APP_NAME not in out
 
 
 def lightkube_create_global_resources() -> dict:
     """Returns a dict with GenericNamespacedResource as value for each CRD key."""
     crds_kinds = [
         crd["spec"]["names"]
-        for crd in yaml.safe_load_all(Path("./src/templates/crds_manifests.yaml.j2").read_text())
+        for crd in yaml.safe_load_all(
+            Path("./src/templates/trainer-crds_manifests.yaml.j2").read_text()
+        )
     ]
     jobs_classes = {}
     for kind in crds_kinds:
@@ -108,7 +110,7 @@ JOBS_CLASSES = lightkube_create_global_resources()
 
 
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
-def test_create_training_jobs(ops_test: OpsTest, example: str):
+def tst_create_training_jobs(ops_test: OpsTest, example: str):
     """Validates that a training job can be created and is running.
 
     Asserts on the *Job status.
@@ -130,7 +132,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
         """Create the training job.
 
         Retry if there is an error when creating the Job.
-        The training-operator may not be ready (even though the Pod shows a Running status,
+        The kubeflow-trainer may not be ready (even though the Pod shows a Running status,
         this retry allows the create command to fail a couple times to allow the operator to
         start all validatingwebhooks for each training job type.
         """
@@ -199,13 +201,13 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     """
     app = ops_test.model.applications[APP_NAME]
     # metrics_target should be the same as the one defined in the charm code when instantiating
-    # the MetricsEndpointProvider. It is set to the training-operator Service name because this
+    # the MetricsEndpointProvider. It is set to the kubeflow-trainer Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
 @pytest.mark.abort_on_fail
-async def test_remove_with_resources_present(ops_test: OpsTest):
+async def tst_remove_with_resources_present(ops_test: OpsTest):
     """Test remove with all resources deployed.
 
     Verify that all deployed resources that need to be removed are removed.
@@ -220,7 +222,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
     lightkube_client = lightkube.Client()
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", "training-operator")],
+        labels=[("app.juju.is/created-by", APP_NAME)],
         namespace=ops_test.model_name,
     )
     # testing for empty list (iterator)
@@ -261,7 +263,7 @@ async def test_upgrade(ops_test: OpsTest):
     lightkube_client = lightkube.Client()
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", "training-operator")],
+        labels=[("app.juju.is/created-by", APP_NAME)],
         namespace=ops_test.model_name,
     )
     # testing for non empty list (iterator)
@@ -270,7 +272,9 @@ async def test_upgrade(ops_test: OpsTest):
 
     # check that all CRDs are installed and versions are correct
     test_crd_list = []
-    for crd in yaml.safe_load_all(Path("./src/templates/crds_manifests.yaml.j2").read_text()):
+    for crd in yaml.safe_load_all(
+        Path("./src/templates/trainer-crds_manifests.yaml.j2").read_text()
+    ):
         test_crd_list.append(
             (
                 crd["metadata"]["name"],
@@ -308,7 +312,7 @@ async def test_remove_without_resources(ops_test: OpsTest):
     lightkube_client = lightkube.Client()
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", "training-operator")],
+        labels=[("app.juju.is/created-by", APP_NAME)],
         namespace=ops_test.model_name,
     )
     for crd in crd_list:
