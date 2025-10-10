@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/created-by: jobset
     app.kubernetes.io/instance: controller-manager
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: deployment
+    app.kubernetes.io/name: {{ app_name }}-jobset
     app.kubernetes.io/part-of: jobset
     control-plane: controller-manager
   name: {{ app_name }}-jobset-controller-manager
@@ -15,6 +15,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
+      app.kubernetes.io/name: {{ app_name }}-jobset
       control-plane: controller-manager
   template:
     metadata:
@@ -22,6 +23,7 @@ spec:
         kubectl.kubernetes.io/default-container: manager
         sidecar.istio.io/inject: "false"
       labels:
+        app.kubernetes.io/name: {{ app_name }}-jobset
         control-plane: controller-manager
     spec:
       containers:

@@ -53,6 +53,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # Wait for the kubeflow-trainer workload Pod to run and the operator to start
     await ensure_kubeflow_trainer_is_running(ops_test)
+    await ensure_jobset_is_running(ops_test)
 
 
 @tenacity.retry(
@@ -85,6 +86,38 @@ async def ensure_kubeflow_trainer_is_running(ops_test: OpsTest) -> None:
         check=True,
     )
     assert APP_NAME not in out
+
+
+@tenacity.retry(
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
+    stop=tenacity.stop_after_delay(30),
+    reraise=True,
+)
+async def ensure_jobset_is_running(ops_test: OpsTest) -> None:
+    """Waits until the jobset workload Pod's status is Running."""
+    # The jobset workload Pod gets a random name, the easiest way
+    # to wait for it to be ready is using kubectl directly
+    await ops_test.run(
+        "kubectl",
+        "wait",
+        "--for=condition=ready",
+        "pod",
+        f"-lapp.kubernetes.io/name={APP_NAME}",
+        f"-n{ops_test.model_name}",
+        "--timeout=10m",
+        check=True,
+    )
+
+    _, out, err = await ops_test.run(
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{ops_test.model_name}",
+        "--field-selector",
+        "status.phase!=Running",
+        check=True,
+    )
+    assert f"{APP_NAME}-jobset" not in out
 
 
 def lightkube_create_global_resources() -> dict:
@@ -207,7 +240,7 @@ async def test_metrics_enpoint(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def tst_remove_with_resources_present(ops_test: OpsTest):
+async def test_remove_with_resources_present(ops_test: OpsTest):
     """Test remove with all resources deployed.
 
     Verify that all deployed resources that need to be removed are removed.
