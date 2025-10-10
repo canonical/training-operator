@@ -23,7 +23,7 @@ Familiarising yourself with the [Charmed Operator Framework](https://juju.is/doc
 
 ## Build Charm
 
-To build `training-operator` run:
+To build `kubeflow-trainer` run:
 
 ```shell
 charmcraft pack
