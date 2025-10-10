@@ -55,14 +55,16 @@ class TrainingOperatorCharm(CharmBase):
         super().__init__(*args)
 
         self.logger = logging.getLogger(__name__)
-        self._image = self.config["kubeflow-trainer-image"]
+        self._kf_trainer_image = self.config["kubeflow-trainer-image"]
+        self._jobset_image = self.config["jobset-image"]
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._lightkube_field_manager = "lightkube"
         self._context = {
             "namespace": self._namespace,
             "app_name": self._name,
-            "kubeflow_trainer_image": self._image,
+            "kubeflow_trainer_image": self._kf_trainer_image,
+            "jobset_image": self._jobset_image,
             "metrics_port": METRICS_PORT,
             "webhook_port": WEBHOOK_PORT,
             "webhook_target_port": WEBHOOK_TARGET_PORT,
