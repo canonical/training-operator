@@ -287,14 +287,7 @@ class TrainingOperatorCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Removing K8S resources")
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
-        training_runtimes_resources_manifests = (
-            self.training_runtimes_resource_handler.render_manifests()
-        )
         try:
-            delete_many(
-                self.training_runtimes_resource_handler.lightkube_client,
-                training_runtimes_resources_manifests,
-            )
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as error:

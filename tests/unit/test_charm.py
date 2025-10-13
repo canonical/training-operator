@@ -180,16 +180,15 @@ class TestCharm:
     def test_on_remove_success(
         self,
         delete_many: MagicMock,
-        k8s_resource_handler: MagicMock,
+        _: MagicMock,
         crd_resource_handler: MagicMock,
-        training_runtimes_resource_handler: MagicMock,
+        k8s_resource_handler: MagicMock,
         harness: Harness,
     ):
         harness.begin()
         harness.charm.on.remove.emit()
         k8s_resource_handler.assert_has_calls([call.render_manifests()])
         crd_resource_handler.assert_has_calls([call.render_manifests()])
-        training_runtimes_resource_handler.assert_has_calls([call.render_manifests()])
         delete_many.assert_called()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
