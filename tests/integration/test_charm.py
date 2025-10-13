@@ -137,8 +137,6 @@ def lightkube_create_global_resources() -> dict:
     return jobs_classes
 
 
-# TODO: Kubeflow upstream MXNet examples use GPU.
-# Not testing MXNetjobs until we have a CPU mxjob example.
 JOBS_CLASSES = lightkube_create_global_resources()
 
 
