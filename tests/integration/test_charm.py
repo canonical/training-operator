@@ -131,7 +131,10 @@ def lightkube_create_global_resources() -> dict:
     jobs_classes = {}
     for kind in crds_kinds:
         job_class = lightkube.generic_resource.create_namespaced_resource(
-            group="kubeflow.org", version="v1", kind=kind["kind"], plural=kind["plural"]
+            group="trainer.kubeflow.org",
+            version="v1alpha1",
+            kind=kind["kind"],
+            plural=kind["plural"],
         )
         jobs_classes[kind["kind"]] = job_class
     return jobs_classes
@@ -207,7 +210,7 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
         # Check whether the last status of *Job is Running/Success
         assert job_status in [
             "Running",
-            "Succeeded",
+            "Complete",
         ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
 
     create_training_job()
