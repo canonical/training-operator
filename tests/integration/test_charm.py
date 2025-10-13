@@ -143,7 +143,7 @@ JOBS_CLASSES = lightkube_create_global_resources()
 
 
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
-def tst_create_training_jobs(ops_test: OpsTest, example: str):
+def test_create_training_jobs(ops_test: OpsTest, example: str):
     """Validates that a training job can be created and is running.
 
     Asserts on the *Job status.
