@@ -29,6 +29,8 @@ spec:
             - /manager
           args:
             - --webhook-service-name={{ app_name }}-workload
+            - --metrics-bind-address=:{{ metrics_port }}
+            - --metrics-secure=false
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
