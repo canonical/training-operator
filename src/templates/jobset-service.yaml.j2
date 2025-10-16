@@ -2,9 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: jobset
-    control-plane: controller-manager
+    app.kubernetes.io/name: {{ app_name }}-jobset
+    control-plane: {{ namespace }}-{{ app_name }}
   name: {{ app_name }}-jobset-controller-manager-metrics-service
   namespace: {{ namespace }}
 spec:
@@ -14,7 +13,7 @@ spec:
     protocol: TCP
     targetPort: 8443
   selector:
-    control-plane: controller-manager
+    control-plane: {{ namespace }}-{{ app_name }}
 ---
 apiVersion: v1
 kind: Service
@@ -34,4 +33,4 @@ spec:
     protocol: TCP
     targetPort: {{ webhook_target_port }}
   selector:
-    control-plane: controller-manager
+    control-plane: {{ namespace }}-{{ app_name }}

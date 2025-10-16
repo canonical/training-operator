@@ -2,13 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app.kubernetes.io/component: manager
-    app.kubernetes.io/created-by: jobset
-    app.kubernetes.io/instance: controller-manager
-    app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: {{ app_name }}-jobset
-    app.kubernetes.io/part-of: jobset
-    control-plane: controller-manager
+    control-plane: {{ namespace }}-{{ app_name }}
   name: {{ app_name }}-jobset-controller-manager
   namespace: {{ namespace }}
 spec:
@@ -16,7 +11,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ app_name }}-jobset
-      control-plane: controller-manager
+      control-plane: {{ namespace }}-{{ app_name }}
   template:
     metadata:
       annotations:
@@ -24,7 +19,7 @@ spec:
         sidecar.istio.io/inject: "false"
       labels:
         app.kubernetes.io/name: {{ app_name }}-jobset
-        control-plane: controller-manager
+        control-plane: {{ namespace }}-{{ app_name }}
     spec:
       containers:
       - args:
