@@ -181,63 +181,30 @@ class TrainingOperatorCharm(CharmBase):
             return True
         return False
 
-    def _apply_k8s_resources(self, force_conflicts: bool = False) -> None:
-        """Applies K8S resources.
-
-        Args:
-            force_conflicts (bool): *(optional)* Will "force" apply requests causing conflicting
-                                    fields to change ownership to the field manager used in this
-                                    charm.
-                                    NOTE: This will only be used if initial regular apply() fails.
-        """
+    def _apply_k8s_resources(self) -> None:
+        """Applies K8S resources."""
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
             self.crd_resource_handler.apply()
         except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying CRD resources
-                # re-apply CRD resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying CRD resources")
-                self.logger.warning("Applying CRD resources with conflict resolution")
-                self.crd_resource_handler.apply(force=force_conflicts)
-            else:
-                raise GenericCharmRuntimeError("CRD resources creation failed") from error
+            raise GenericCharmRuntimeError("CRD resources creation failed") from error
         try:
             self.k8s_resource_handler.apply()
         except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying K8S resources
-                # re-apply K8S resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying K8S resources")
-                self.logger.warning("Applying K8S resources with conflict resolution")
-                self.k8s_resource_handler.apply(force=force_conflicts)
-            else:
-                raise GenericCharmRuntimeError("K8S resources creation failed") from error
+            raise GenericCharmRuntimeError("K8S resources creation failed") from error
 
         for i in range(0, 3):
             while True:
                 try:
                     self.training_runtimes_resource_handler.apply()
                 except ApiError as error:
-                    if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                        # conflict detected when applying TrainingRuntime resources
-                        # re-apply TrainingRuntime resources with forced conflict resolution
-                        self.unit.status = MaintenanceStatus(
-                            "Force applying TrainingRuntime resources"
-                        )
-                        self.logger.warning(
-                            "Applying TrainingRuntime resources with conflict resolution"
-                        )
-                        self.training_runtimes_resource_handler.apply(force=force_conflicts)
                     if error.status.code == 500:
-                        if i > 10:
+                        if i > 3:
                             raise GenericCharmRuntimeError(
                                 "TrainingRuntime resources creation failed"
                             ) from error
                         self.logger.warning("Validator not up yet")
-                        i += 1
                         time.sleep(10)
-                        # self.training_runtimes_resource_handler.apply(force=force_conflicts)
                     else:
                         raise GenericCharmRuntimeError(
                             "TrainingRuntime resources creation failed"
@@ -246,20 +213,12 @@ class TrainingOperatorCharm(CharmBase):
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    # TODO: force_conflicts=True due to
-    #  https://github.com/canonical/training-operator/issues/104
-    #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
-    #  merges.
-    def _on_event(self, _, force_conflicts: bool = True) -> None:
-        """Perform all required actions the Charm.
+    def _on_event(self, _) -> None:
+        """Perform all required actions the Charm."""
 
-        Args:
-            force_conflicts (bool): Should only be used when need to resolved conflicts on K8S
-                                    resources.
-        """
         try:
             self._check_leader()
-            self._apply_k8s_resources(force_conflicts=force_conflicts)
+            self._apply_k8s_resources()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
@@ -269,18 +228,11 @@ class TrainingOperatorCharm(CharmBase):
     def _on_install(self, _):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
-        # TODO: force_conflicts=True due to
-        #  https://github.com/canonical/training-operator/issues/104
-        #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
-        #  merges.
-        self._apply_k8s_resources(force_conflicts=True)
+        self._apply_k8s_resources()
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
-        # force conflict resolution in K8S resources update
-        #  TODO: Remove force_conflicts if
-        #   [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65) merges.
-        self._on_event(_, force_conflicts=True)
+        self._on_event(_)
 
     def _on_remove(self, _):
         """Remove all resources."""
