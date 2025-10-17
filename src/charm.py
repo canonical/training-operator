@@ -38,7 +38,12 @@ CRD_RESOURCE_FILES = [
     "src/templates/trainer-crds_manifests.yaml.j2",
     "src/templates/jobset-crds_manifests.yaml.j2",
 ]
-TRAINING_RUNTIMES_FILES = ["src/training_runtimes/torch_distributed.yaml.j2"]
+TRAINING_RUNTIMES_FILES = [
+    "src/training_runtimes/deepspeed_distributed.yaml.j2",
+    "src/training_runtimes/mlx_distributed.yaml.j2",
+    "src/training_runtimes/mpi_distributed.yaml.j2",
+    "src/training_runtimes/torch_distributed.yaml.j2",
+]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
 WEBHOOK_PORT = "443"
