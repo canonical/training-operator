@@ -90,7 +90,8 @@ class TestCharm:
     ):
         """Test if K8S resource handler is executed as expected."""
         harness.begin()
-        harness.charm._apply_k8s_resources()
+        # passing any event to _apply_k8s_resources works
+        harness.charm._apply_k8s_resources(harness.charm.on.install)
         crd_resource_handler.apply.assert_called()
         training_runtimes_resource_handler.apply.assert_called()
         k8s_resource_handler.apply.assert_called()
