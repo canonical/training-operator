@@ -1,6 +1,6 @@
 options:
   training-operator-image:
-    default: ghcr.io/kubeflow/training-v1/training-operator:v1-d6eb98e
+    default: docker.io/charmedkubeflow/training-operator:1.9.3-9e9ea13
     description: |
       Container image to be used by the training-operator workload.
     type: string
