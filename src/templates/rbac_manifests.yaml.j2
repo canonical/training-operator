@@ -355,6 +355,13 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - localqueues
+  verbs:
+  - get
+  - list
+- apiGroups:
   - ""
   resources:
   - persistentvolumeclaims
@@ -404,6 +411,13 @@ rules:
   - jaxjobs/status
   verbs:
   - get
+- apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - localqueues
+  verbs:
+  - get
+  - list
 ---
 apiVersion: v1
 kind: ServiceAccount
