@@ -4,7 +4,6 @@
 #
 
 import logging
-import time
 
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
@@ -17,7 +16,7 @@ from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
-from ops import main
+from ops import EventBase, InstallEvent, main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
@@ -181,7 +180,7 @@ class TrainingOperatorCharm(CharmBase):
             return True
         return False
 
-    def _apply_k8s_resources(self) -> None:
+    def _apply_k8s_resources(self, event: EventBase) -> None:
         """Applies K8S resources."""
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
@@ -192,43 +191,37 @@ class TrainingOperatorCharm(CharmBase):
             self.k8s_resource_handler.apply()
         except ApiError as error:
             raise GenericCharmRuntimeError("K8S resources creation failed") from error
-
-        for i in range(0, 3):
-            while True:
-                try:
-                    self.training_runtimes_resource_handler.apply()
-                except ApiError as error:
-                    if error.status.code == 500:
-                        if i > 3:
-                            raise GenericCharmRuntimeError(
-                                "TrainingRuntime resources creation failed"
-                            ) from error
-                        self.logger.warning("Validator not up yet")
-                        time.sleep(10)
-                    else:
-                        raise GenericCharmRuntimeError(
-                            "TrainingRuntime resources creation failed"
-                        ) from error
-                break
+        try:
+            self.training_runtimes_resource_handler.apply()
+        except ApiError as error:
+            if error.status.code == 500:
+                self.model.unit.status = MaintenanceStatus("TrainingRuntimes validator not up")
+                self.logger.warning("TrainingRuntimes validator not up")
+                event.defer()
+                return
+            else:
+                raise GenericCharmRuntimeError(
+                    "TrainingRuntime resources creation failed"
+                ) from error
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    def _on_event(self, _) -> None:
+    def _on_event(self, event: EventBase) -> None:
         """Perform all required actions the Charm."""
 
         try:
             self._check_leader()
-            self._apply_k8s_resources()
+            self._apply_k8s_resources(event)
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
 
         self.model.unit.status = ActiveStatus()
 
-    def _on_install(self, _):
+    def _on_install(self, event: InstallEvent):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
-        self._apply_k8s_resources()
+        self._apply_k8s_resources(event)
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
