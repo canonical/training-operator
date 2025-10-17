@@ -28,7 +28,7 @@ PROFILE_NAMESPACE = "profile-example"
 PROFILE_NAME = "profile-example"
 PROFILE_FILE_PATH = basedir / "tests/integration/profile.yaml"
 PROFILE_FILE = yaml.safe_load(PROFILE_FILE_PATH.read_text())
-APP_NAME = "training-operator"
+APP_NAME = "kubeflow-trainer"
 
 ISTIO_PILOT_NAME = "istio-pilot"
 ISTIO_PILOT_CHANNEL = "latest/edge"

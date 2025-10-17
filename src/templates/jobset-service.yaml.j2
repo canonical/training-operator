@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ app_name }}-jobset
+    control-plane: {{ namespace }}-{{ app_name }}
+  name: {{ app_name }}-jobset-controller-manager-metrics-service
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    control-plane: {{ namespace }}-{{ app_name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/created-by: jobset
+    app.kubernetes.io/instance: webhook-service
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: service
+    app.kubernetes.io/part-of: jobset
+  name: {{ app_name }}-jobset-webhook-service
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - port: {{ webhook_port }}
+    protocol: TCP
+    targetPort: {{ webhook_target_port }}
+  selector:
+    control-plane: {{ namespace }}-{{ app_name }}

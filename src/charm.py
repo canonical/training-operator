@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2021 Canonical Ltd.
+# Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 #
 
@@ -16,19 +16,33 @@ from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
-from ops import main
+from ops import EventBase, InstallEvent, main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
-    "src/templates/rbac_manifests.yaml.j2",
-    "src/templates/secret.yaml.j2",
-    "src/templates/deployment.yaml.j2",
-    "src/templates/validatingwebhookconfiguration.yaml.j2",
-    "src/templates/service.yaml.j2",
+    "src/templates/trainer-rbac_manifests.yaml.j2",
+    "src/templates/trainer-secret.yaml.j2",
+    "src/templates/trainer-deployment.yaml.j2",
+    "src/templates/trainer-validatingwebhookconfiguration.yaml.j2",
+    "src/templates/trainer-service.yaml.j2",
+    "src/templates/jobset-rbac_manifests.yaml.j2",
+    "src/templates/jobset-secret.yaml.j2",
+    "src/templates/jobset-configmap.yaml.j2",
+    "src/templates/jobset-deployment.yaml.j2",
+    "src/templates/jobset-validatingwebhookconfiguration.yaml.j2",
+    "src/templates/jobset-mutatingwebhookconfiguration.yaml.j2",
+    "src/templates/jobset-service.yaml.j2",
 ]
 CRD_RESOURCE_FILES = [
-    "src/templates/crds_manifests.yaml.j2",
+    "src/templates/trainer-crds_manifests.yaml.j2",
+    "src/templates/jobset-crds_manifests.yaml.j2",
+]
+TRAINING_RUNTIMES_FILES = [
+    "src/training_runtimes/deepspeed_distributed.yaml.j2",
+    "src/training_runtimes/mlx_distributed.yaml.j2",
+    "src/training_runtimes/mpi_distributed.yaml.j2",
+    "src/training_runtimes/torch_distributed.yaml.j2",
 ]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
@@ -45,14 +59,16 @@ class TrainingOperatorCharm(CharmBase):
         super().__init__(*args)
 
         self.logger = logging.getLogger(__name__)
-        self._image = self.config["training-operator-image"]
+        self._kf_trainer_image = self.config["kubeflow-trainer-image"]
+        self._jobset_image = self.config["jobset-image"]
         self._name = self.model.app.name
         self._namespace = self.model.name
         self._lightkube_field_manager = "lightkube"
         self._context = {
             "namespace": self._namespace,
             "app_name": self._name,
-            "training_operator_image": self._image,
+            "kubeflow_trainer_image": self._kf_trainer_image,
+            "jobset_image": self._jobset_image,
             "metrics_port": METRICS_PORT,
             "webhook_port": WEBHOOK_PORT,
             "webhook_target_port": WEBHOOK_TARGET_PORT,
@@ -60,6 +76,7 @@ class TrainingOperatorCharm(CharmBase):
 
         self._k8s_resource_handler = None
         self._crd_resource_handler = None
+        self._training_runtimes_resource_handler = None
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
@@ -75,9 +92,9 @@ class TrainingOperatorCharm(CharmBase):
             relation_name="dashboard-links",
             dashboard_links=[
                 DashboardLink(
-                    text="Kubeflow Training Operator Documentation",
-                    link="https://www.kubeflow.org/docs/components/training/",
-                    desc="Documentation for Kubeflow Training Operator",
+                    text="Kubeflow Trainer Documentation",
+                    link="https://www.kubeflow.org/docs/components/trainer/",
+                    desc="Documentation for Kubeflow Trainer",
                     location="documentation",
                 ),
             ],
@@ -136,6 +153,25 @@ class TrainingOperatorCharm(CharmBase):
     def crd_resource_handler(self, handler: KubernetesResourceHandler):
         self._crd_resource_handler = handler
 
+    @property
+    def training_runtimes_resource_handler(self):
+        """Update K8S with TrainingRuntime resources."""
+        if not self._training_runtimes_resource_handler:
+            self._training_runtimes_resource_handler = KubernetesResourceHandler(
+                field_manager=self._lightkube_field_manager,
+                template_files=TRAINING_RUNTIMES_FILES,
+                context=self._context,
+                logger=self.logger,
+            )
+        load_in_cluster_generic_resources(
+            self._training_runtimes_resource_handler.lightkube_client
+        )
+        return self._training_runtimes_resource_handler
+
+    @training_runtimes_resource_handler.setter
+    def training_runtimes_resource_handler(self, handler: KubernetesResourceHandler):
+        self._training_runtimes_resource_handler = handler
+
     def _check_leader(self):
         """Check if this unit is a leader."""
         if not self.unit.is_leader():
@@ -149,76 +185,52 @@ class TrainingOperatorCharm(CharmBase):
             return True
         return False
 
-    def _apply_k8s_resources(self, force_conflicts: bool = False) -> None:
-        """Applies K8S resources.
-
-        Args:
-            force_conflicts (bool): *(optional)* Will "force" apply requests causing conflicting
-                                    fields to change ownership to the field manager used in this
-                                    charm.
-                                    NOTE: This will only be used if initial regular apply() fails.
-        """
+    def _apply_k8s_resources(self, event: EventBase) -> None:
+        """Applies K8S resources."""
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
             self.crd_resource_handler.apply()
         except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying CRD resources
-                # re-apply CRD resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying CRD resources")
-                self.logger.warning("Applying CRD resources with conflict resolution")
-                self.crd_resource_handler.apply(force=force_conflicts)
-            else:
-                raise GenericCharmRuntimeError("CRD resources creation failed") from error
+            raise GenericCharmRuntimeError("CRD resources creation failed") from error
         try:
             self.k8s_resource_handler.apply()
         except ApiError as error:
-            if self._check_and_report_k8s_conflict(error) and force_conflicts:
-                # conflict detected when applying K8S resources
-                # re-apply K8S resources with forced conflict resolution
-                self.unit.status = MaintenanceStatus("Force applying K8S resources")
-                self.logger.warning("Applying K8S resources with conflict resolution")
-                self.k8s_resource_handler.apply(force=force_conflicts)
+            raise GenericCharmRuntimeError("K8S resources creation failed") from error
+        try:
+            self.training_runtimes_resource_handler.apply()
+        except ApiError as error:
+            if error.status.code == 500:
+                self.model.unit.status = MaintenanceStatus("TrainingRuntimes validator not up")
+                self.logger.warning("TrainingRuntimes validator not up")
+                event.defer()
+                return
             else:
-                raise GenericCharmRuntimeError("K8S resources creation failed") from error
+                raise GenericCharmRuntimeError(
+                    "TrainingRuntime resources creation failed"
+                ) from error
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    # TODO: force_conflicts=True due to
-    #  https://github.com/canonical/training-operator/issues/104
-    #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
-    #  merges.
-    def _on_event(self, _, force_conflicts: bool = True) -> None:
-        """Perform all required actions the Charm.
+    def _on_event(self, event: EventBase) -> None:
+        """Perform all required actions the Charm."""
 
-        Args:
-            force_conflicts (bool): Should only be used when need to resolved conflicts on K8S
-                                    resources.
-        """
         try:
             self._check_leader()
-            self._apply_k8s_resources(force_conflicts=force_conflicts)
+            self._apply_k8s_resources(event)
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
 
         self.model.unit.status = ActiveStatus()
 
-    def _on_install(self, _):
+    def _on_install(self, event: InstallEvent):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
-        # TODO: force_conflicts=True due to
-        #  https://github.com/canonical/training-operator/issues/104
-        #  Remove this if [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65)
-        #  merges.
-        self._apply_k8s_resources(force_conflicts=True)
+        self._apply_k8s_resources(event)
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""
-        # force conflict resolution in K8S resources update
-        #  TODO: Remove force_conflicts if
-        #   [this pr](https://github.com/canonical/charmed-kubeflow-chisme/pull/65) merges.
-        self._on_event(_, force_conflicts=True)
+        self._on_event(_)
 
     def _on_remove(self, _):
         """Remove all resources."""

@@ -1,5 +1,5 @@
 output "app_name" {
-  value = juju_application.training_operator.name
+  value = juju_application.kubeflow-trainer.name
 }
 
 output "provides" {

@@ -1,6 +1,11 @@
 options:
-  training-operator-image:
-    default: charmedkubeflow/training-operator:1.9.0-bf1ad8d
+  kubeflow-trainer-image:
+    default: docker.io/charmedkubeflow/kubeflow-trainer:2.0.1-86e4949
     description: |
-      Container image to be used by the training-operator workload.
+      Container image to be used by the Kubeflow Trainer workload.
+    type: string
+  jobset-image:
+    default: docker.io/charmedkubeflow/jobset:0.8.2-c6af5cc
+    description: |
+      Container image to be used by the JobSet workload.
     type: string

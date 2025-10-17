@@ -1,6 +1,6 @@
-resource "juju_application" "training_operator" {
+resource "juju_application" "kubeflow-trainer" {
   charm {
-    name     = "training-operator"
+    name     = "kubeflow-trainer"
     channel  = var.channel
     revision = var.revision
   }

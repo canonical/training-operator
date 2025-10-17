@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: training-operator-cov_html
+          path: kubeflow-trainer-cov_html
         if: failure()
 
   terraform-checks:
@@ -92,15 +92,15 @@ jobs:
         if: failure()
 
       - name: Get validatingwebhookconfigurations
-        run: kubectl get validatingwebhookconfigurations validator.training-operator.kubeflow.org -oyaml
+        run: kubectl get validatingwebhookconfigurations validator.trainer.kubeflow.org -oyaml
         if: failure()
 
       - name: Get secret
-        run: kubectl get secret -ntesting training-operator-webhook-cert -oyaml
+        run: kubectl get secret -ntesting kubeflow-trainer-webhook-cert -oyaml
         if: failure()
 
       - name: Describe pod
-        run: kubectl describe pod -ntesting -lapp.kubernetes.io/name=training-operator
+        run: kubectl describe pod -ntesting -lapp.kubernetes.io/name=kubeflow-trainer
         if: failure()
 
       - name: Get pods
@@ -108,5 +108,5 @@ jobs:
         if: failure()
 
       - name: Get operator logs
-        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ctraining-operator
+        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=kubeflow-trainer -c trainer
         if: failure()

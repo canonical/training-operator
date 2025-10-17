@@ -1,0 +1,9 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: mlx-simple
+spec:
+  runtimeRef:
+    name: mlx-distributed
+  trainer:
+    numNodes: 2
