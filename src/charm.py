@@ -84,6 +84,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._on_event)
         self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.start, self._on_event)
         self.framework.observe(self.on.remove, self._on_remove)
 
         # Add documentation link to the dashboard
