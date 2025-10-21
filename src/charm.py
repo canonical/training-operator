@@ -179,13 +179,6 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _check_and_report_k8s_conflict(self, error):
-        """Returns True if error status code is 409 (conflict), False otherwise."""
-        if error.status.code == 409:
-            self.logger.warning(f"Encountered a conflict: {str(error)}")
-            return True
-        return False
-
     def _apply_k8s_resources(self, event: EventBase) -> None:
         """Applies K8S resources."""
         self.unit.status = MaintenanceStatus("Creating K8S resources")
