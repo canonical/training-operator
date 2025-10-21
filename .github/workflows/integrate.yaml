@@ -74,7 +74,6 @@ jobs:
           sudo apt-get remove -y docker-ce docker-ce-cli containerd.io
           sudo rm -rf /run/containerd
           sudo snap install concierge --classic
-          sudo snap install --classic juju-crashdump
           sudo concierge prepare --trace
 
       - name: Run integration tests
@@ -111,10 +110,3 @@ jobs:
       - name: Get operator logs
         run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=kubeflow-trainer -c trainer
         if: failure()
-
-      - name: Archive juju crashdump
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: juju-crashdump
-          path: juju-crashdump-*.tar.xz
