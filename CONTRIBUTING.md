@@ -75,6 +75,13 @@ The following table collects a series of links and information that can help in 
 |----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [kubeflow/kubeflow-trainer](https://hub.docker.com/r/kubeflow/trainer-controller-manager/) 	 | `v2-<commit sha>`<br>The commit sha comes from the HEAD of the release tag 	 | [kubeflow/manifests](https://github.com/kubeflow/manifests/tree/master/applications/trainer/upstream) 	 | Check for latest version released or pre-released in <br>the repo [releases](https://github.com/kubeflow/trainer/releases), it should match the release plan usually stated in issues like <br>[Add Kubeflow Training V2 manifests for Kubeflow Platform](https://github.com/kubeflow/manifests/issues/2948) release and [Kubeflow Platform (Manifests & Security WG) roadmap for KF 1.10.0](https://github.com/kubeflow/manifests/issues/2763) 	 |
 
+## Updating examples
+
+The training examples for `torch` and `deepspeed` are based on upstream [E2E go tests](https://github.com/kubeflow/trainer/blob/v2.0.1/test/e2e/e2e_test.go) and ported to the YAML format.
+
+The examples for `mlx` and `mpi` are loosely based on the same structure: these examples create a
+new `TrainJob` based its target `ClusterTrainingRuntime`, using default parameters.
+
 ## Canonical Contributor Agreement
 
 Canonical welcomes contributions to the Charmed Trainer. Please check out our [contributor agreement](https://ubuntu.com/legal/contributors) if you're interested in contributing to the solution.
