@@ -36,6 +36,16 @@ ISTIO_PILOT_TRUST = True
 
 log = logging.getLogger(__name__)
 
+TRAINER_CRD_RESOURCE_FILE = "src/templates/trainer-crds_manifests.yaml.j2"
+
+
+def _build_crd_kinds():
+    crd_yaml = yaml.safe_load_all(Path(TRAINER_CRD_RESOURCE_FILE).read_text())
+    crd_kinds = []
+    for crd in crd_yaml:
+        crd_kinds.append(crd.get("spec").get("names").get("kind"))
+    return crd_kinds
+
 
 @pytest.mark.abort_on_fail
 async def test_build_and_deploy(ops_test: OpsTest):
@@ -71,7 +81,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
 @pytest.mark.abort_on_fail
-async def test_authorization_for_creating_resources(
+async def test_authorization_for_creating_trainjob_resources(
     example, ops_test: OpsTest, lightkube_client, apply_profile
 ):
     """Assert a *Job can be created by a user in the user namespace."""
@@ -85,6 +95,27 @@ async def test_authorization_for_creating_resources(
         "can-i",
         "create",
         f"{training_job}",
+        f"--as=system:serviceaccount:{PROFILE_NAMESPACE}:default-editor",
+        f"--namespace={PROFILE_NAMESPACE}",
+        check=True,
+        fail_msg="Failed to execute kubectl auth",
+    )
+    assert stdout.strip() == "yes"
+
+
+@pytest.mark.parametrize("crd_kind", _build_crd_kinds())
+@pytest.mark.abort_on_fail
+async def test_authorization_for_getting_crds(
+    crd_kind, ops_test: OpsTest, lightkube_client, apply_profile
+):
+    """Assert CRDs can be fetched by a user in the user namespace."""
+    log.info(f"Checking `kubectl can-i get` for {crd_kind}")
+    _, stdout, _ = await ops_test.run(
+        "kubectl",
+        "auth",
+        "can-i",
+        "get",
+        f"{crd_kind}",
         f"--as=system:serviceaccount:{PROFILE_NAMESPACE}:default-editor",
         f"--namespace={PROFILE_NAMESPACE}",
         check=True,
