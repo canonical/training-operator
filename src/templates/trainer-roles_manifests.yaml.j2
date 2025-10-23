@@ -1,21 +1,7 @@
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ app_name }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ app_name }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ app_name}}-workload
-    namespace: {{ namespace }}
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ app_name }}
+  name: {{ app_name }}-controller-manager
 rules:
 - apiGroups:
   - ""
@@ -39,14 +25,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - limitranges
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - admissionregistration.k8s.io
   resources:
   - validatingwebhookconfigurations
@@ -65,14 +43,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - node.k8s.io
-  resources:
-  - runtimeclasses
-  verbs:
-  - get
-  - list
   - watch
 - apiGroups:
   - scheduling.x-k8s.io
@@ -109,23 +79,18 @@ rules:
   - patch
   - update
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ app_name}}-workload
-  namespace: {{ namespace }}
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ app_name }}-admin
   labels:
     rbac.authorization.kubeflow.org/aggregate-to-kubeflow-admin: "true"
+  name: {{ app_name }}-admin
 aggregationRule:
   clusterRoleSelectors:
-    - matchLabels:
-        rbac.authorization.kubeflow.org/aggregate-to-kubeflow-trainer-admin: "true"
+  - matchLabels:
+      rbac.authorization.kubeflow.org/aggregate-to-{{ app_name }}-admin: "true"
 rules: []
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -182,6 +147,7 @@ rules:
       - get
       - list
       - watch
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -206,29 +172,3 @@ rules:
       - trainjobs/status
     verbs:
       - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ app_name }}-view
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ app_name }}-view
-subjects:
-  - kind: ServiceAccount
-    name: notebook-controller-service-account   # Notebook Service Account
-    namespace: {{ namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ app_name }}-view
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ app_name }}-view
-subjects:
-  - kind: ServiceAccount
-    name: controller-service-account   # Profile Service Account
-    namespace: {{ namespace }}

@@ -8,7 +8,7 @@ webhooks:
   - v1
   clientConfig:
     service:
-      name: {{ app_name }}-workload
+      name: {{ app_name }}-controller-manager
       namespace: {{ namespace }}
       path: /validate-trainer-kubeflow-org-v1alpha1-clustertrainingruntime
   failurePolicy: Fail
@@ -28,7 +28,7 @@ webhooks:
   - v1
   clientConfig:
     service:
-      name: {{ app_name }}-workload
+      name: {{ app_name }}-controller-manager
       namespace: {{ namespace }}
       path: /validate-trainer-kubeflow-org-v1alpha1-trainingruntime
   failurePolicy: Fail
@@ -48,7 +48,7 @@ webhooks:
   - v1
   clientConfig:
     service:
-      name: {{ app_name }}-workload
+      name: {{ app_name }}-controller-manager
       namespace: {{ namespace }}
       path: /validate-trainer-kubeflow-org-v1alpha1-trainjob
   failurePolicy: Fail

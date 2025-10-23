@@ -18,10 +18,12 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops import EventBase, InstallEvent, main
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
-    "src/templates/trainer-rbac_manifests.yaml.j2",
+    "src/templates/trainer-role_bindings_manifests.yaml.j2",
+    "src/templates/trainer-roles_manifests.yaml.j2",
+    "src/templates/trainer-serviceaccount_manifests.yaml.j2",
     "src/templates/trainer-secret.yaml.j2",
     "src/templates/trainer-deployment.yaml.j2",
     "src/templates/trainer-validatingwebhookconfiguration.yaml.j2",
@@ -102,7 +104,7 @@ class TrainingOperatorCharm(CharmBase):
         )
 
         # The target is the Service (applied with service.yaml.j2) and the name has the following
-        # format: app-name-workload.namespace.svc:metrics_port
+        # format: app-name-controller-manager.namespace.svc:metrics_port
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
             relation_name="metrics-endpoint",
@@ -112,7 +114,7 @@ class TrainingOperatorCharm(CharmBase):
                     "static_configs": [
                         {
                             "targets": [
-                                f"{self._name}-workload.{self._namespace}.svc:{METRICS_PORT}"
+                                f"{self._name}-controller-manager.{self._namespace}.svc:{METRICS_PORT}"  # noqa E501
                             ]
                         }
                     ],
