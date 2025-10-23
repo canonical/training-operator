@@ -5,7 +5,7 @@
 
 import logging
 
-from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
@@ -18,7 +18,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops import EventBase, InstallEvent, main
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus, BlockedStatus
 
 K8S_RESOURCE_FILES = [
     "src/templates/trainer-rbac_manifests.yaml.j2",
@@ -84,7 +84,7 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._on_event)
         self.framework.observe(self.on.leader_elected, self._on_event)
         self.framework.observe(self.on.install, self._on_install)
-        self.framework.observe(self.on.start, self._on_event)
+        self.framework.observe(self.on.update_status, self._on_event)
         self.framework.observe(self.on.remove, self._on_remove)
 
         # Add documentation link to the dashboard
@@ -185,23 +185,45 @@ class TrainingOperatorCharm(CharmBase):
         try:
             self.crd_resource_handler.apply()
         except ApiError as error:
-            raise GenericCharmRuntimeError("CRD resources creation failed") from error
+            self.logger.warning("Unexpected ApiError happened: %s", error)
+            raise ErrorWithStatus(
+                f"CRD resources creation failed: {error.status.message}",
+                BlockedStatus,
+            )
         try:
             self.k8s_resource_handler.apply()
         except ApiError as error:
-            raise GenericCharmRuntimeError("K8S resources creation failed") from error
+            self.logger.warning("Unexpected ApiError happened: %s", error)
+            raise ErrorWithStatus(
+                f"K8s resources creation failed: {error.status.message}",
+                BlockedStatus,
+            )
         try:
             self.training_runtimes_resource_handler.apply()
         except ApiError as error:
-            if error.status.code == 500:
-                self.model.unit.status = MaintenanceStatus("TrainingRuntimes validator not up")
-                self.logger.warning("TrainingRuntimes validator not up")
-                event.defer()
-                return
+            if error.status.code == 500 and "connect: " in error.status.message:
+                self.logger.warning("Failed to create TrainingRuntimes: %s", error.status.message)
+                msg = "Charm Pod is not ready yet. Will apply TrainingRuntimes later."
+                self.logger.info(msg)
+                self.model.unit.status = MaintenanceStatus(msg)
+                raise ErrorWithStatus(msg, MaintenanceStatus)
+                # If the Endpoint for the webhook server Service is not yet created
+                # then K8s will drop request to svc with message "no endpoints available".
+                # The Endpoint gets created automatically by the control plane shortly
+                # after the Service is created. Drop the traffic and set the status to
+                # `MaintenanceStatus` expecting the error to be resolved in the future hooks.
+            elif "no endpoints available" in error.status.message:
+                self.logger.warning("Failed to create TrainingRuntimes: %s", error.status.message)
+                msg = "Webhook Server Service endpoints not ready. Will apply ClusterServingRuntimes later."  # noqa E501
+                self.logger.info(msg)
+                self.model.unit.status = MaintenanceStatus(msg)
+                raise ErrorWithStatus(msg, MaintenanceStatus)
             else:
-                raise GenericCharmRuntimeError(
-                    "TrainingRuntime resources creation failed"
-                ) from error
+                self.logger.warning("Unexpected ApiError happened: %s", error)
+                raise ErrorWithStatus(
+                    f"TrainingRuntime resources creation failed: {error.status.message}",
+                    BlockedStatus,
+                )
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
@@ -220,7 +242,11 @@ class TrainingOperatorCharm(CharmBase):
     def _on_install(self, event: InstallEvent):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
-        self._apply_k8s_resources(event)
+        try:
+            self._apply_k8s_resources(event)
+        except ErrorWithStatus as error:
+            self.model.unit.status = error.status
+            return
 
     def _on_upgrade(self, _):
         """Perform upgrade steps."""

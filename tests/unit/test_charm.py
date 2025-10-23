@@ -14,9 +14,10 @@ from charm import TrainingOperatorCharm
 class _FakeResponse:
     """Used to fake an httpx response during testing only."""
 
-    def __init__(self, code):
+    def __init__(self, code, message=""):
         self.code = code
         self.name = ""
+        self.message = message
 
     def json(self):
         reason = ""
@@ -25,7 +26,7 @@ class _FakeResponse:
         return {
             "apiVersion": 1,
             "code": self.code,
-            "message": "broken",
+            "message": self.message,
             "reason": reason,
         }
 
@@ -33,8 +34,8 @@ class _FakeResponse:
 class _FakeApiError(ApiError):
     """Used to simulate an ApiError during testing."""
 
-    def __init__(self, code=400):
-        super().__init__(response=_FakeResponse(code))
+    def __init__(self, code: int = 400, message: str = ""):
+        super().__init__(response=_FakeResponse(code, message))
 
 
 @pytest.fixture(scope="function")
@@ -101,30 +102,25 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_blocked_on_appierror_on_k8s_resource_handler(
-        self, k8s_resource_handler: MagicMock, _: MagicMock, __: MagicMock, harness: Harness
+    def test_blocked_on_apierror_on_k8s_resource_handler(
+        self, _: MagicMock, __: MagicMock, k8s_resource_handler: MagicMock, harness: Harness
     ):
         # Ensure the unit is in BlockedStatus
         # on exception when creating auth resources
-        k8s_resource_handler.side_effect = _FakeApiError()
+        k8s_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
-        try:
-            harness.charm.on.install.emit()
-        except ApiError:
-            self.assertEqual(
-                harness.charm.unit.status,
-                BlockedStatus(
-                    f"Creating/patching resources failed with code"
-                    f"{k8s_resource_handler.side_effect.response.code}."
-                ),
-            )
+        harness.charm.on.install.emit()
+        assert harness.charm.unit.status == BlockedStatus(
+            f"K8s resources creation failed: "
+            f"{k8s_resource_handler.apply.side_effect.response.message}"
+        )
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_blocked_on_appierror_on_crd_resource_handler(
+    def test_blocked_on_apierror_on_crd_resource_handler(
         self,
         _: MagicMock,
         crd_resource_handler: MagicMock,
@@ -133,25 +129,20 @@ class TestCharm:
     ):
         # Ensure the unit is in BlockedStatus
         # on exception when creating auth resources
-        crd_resource_handler.side_effect = _FakeApiError()
+        crd_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
-        try:
-            harness.charm.on.install.emit()
-        except ApiError:
-            self.assertEqual(
-                harness.charm.unit.status,
-                BlockedStatus(
-                    f"Creating/patching resources failed with code"
-                    f"{crd_resource_handler.side_effect.response.code}."
-                ),
-            )
+        harness.charm.on.install.emit()
+        assert harness.charm.unit.status == BlockedStatus(
+            f"CRD resources creation failed: "
+            f"{crd_resource_handler.apply.side_effect.response.message}"
+        )
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_blocked_on_appierror_on_training_runtimes_resource_handler(
+    def test_blocked_on_apierror_on_training_runtimes_resource_handler(
         self,
         _: MagicMock,
         __: MagicMock,
@@ -173,6 +164,50 @@ class TestCharm:
                     f"{training_runtimes_resource_handler.side_effect.response.code}."
                 ),
             )
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.ApiError", _FakeApiError)
+    def test_waiting_on_charm_pod_not_ready_on_training_runtimes_resource_handler(
+        self,
+        training_runtimes_resource_handler: MagicMock,
+        _: MagicMock,
+        __: MagicMock,
+        harness: Harness,
+    ):
+        # Ensure the unit is in MaintenanceStatus with correct message
+        # on 500 exception due to connect failure when creating TrainingRuntime resources
+        training_runtimes_resource_handler.apply.side_effect = _FakeApiError(
+            code=500, message="connect: failed"
+        )
+        harness.begin()
+        harness.charm.on.install.emit()
+        assert harness.charm.model.unit.status == MaintenanceStatus(
+            "Charm Pod is not ready yet. Will apply TrainingRuntimes later."
+        )
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.ApiError", _FakeApiError)
+    def test_waiting_on_webhook_server_service_not_ready_on_training_runtimes_resource_handler(
+        self,
+        training_runtimes_resource_handler: MagicMock,
+        _: MagicMock,
+        __: MagicMock,
+        harness: Harness,
+    ):
+        # Ensure the unit is in MaintenanceStatus with correct message
+        # on 500 exception due to connect failure when creating TrainingRuntime resources
+        training_runtimes_resource_handler.apply.side_effect = _FakeApiError(
+            code=500, message="no endpoints available"
+        )
+        harness.begin()
+        harness.charm.on.install.emit()
+        assert harness.charm.model.unit.status == MaintenanceStatus(
+            "Webhook Server Service endpoints not ready. Will apply ClusterServingRuntimes later."  # noqa E501
+        )
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
