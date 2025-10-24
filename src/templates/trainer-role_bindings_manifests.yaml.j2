@@ -12,6 +12,9 @@ subjects:
     name: {{ app_name }}-controller-manager
     namespace: {{ namespace }}
 ---
+# this role binding is required to allow serviceAccounts in every namespace permissions to read
+# clustertrainingruntimes
+# see issue: https://github.com/kubeflow/trainer/issues/2747
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
