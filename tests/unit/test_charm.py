@@ -92,7 +92,7 @@ class TestCharm:
         """Test if K8S resource handler is executed as expected."""
         harness.begin()
         # passing any event to _apply_k8s_resources works
-        harness.charm._apply_k8s_resources(harness.charm.on.install)
+        harness.charm._apply_k8s_resources()
         crd_resource_handler.apply.assert_called()
         training_runtimes_resource_handler.apply.assert_called()
         k8s_resource_handler.apply.assert_called()
@@ -144,26 +144,21 @@ class TestCharm:
     @patch("charm.ApiError", _FakeApiError)
     def test_blocked_on_apierror_on_training_runtimes_resource_handler(
         self,
+        training_runtimes_resource_handler: MagicMock,
         _: MagicMock,
         __: MagicMock,
-        training_runtimes_resource_handler: MagicMock,
         harness: Harness,
     ):
         # Ensure the unit is in BlockedStatus
         # on exception when creating TrainingRuntime resources
-        training_runtimes_resource_handler.side_effect = _FakeApiError()
+        training_runtimes_resource_handler.apply.side_effect = _FakeApiError()
 
         harness.begin()
-        try:
-            harness.charm.on.install.emit()
-        except ApiError:
-            self.assertEqual(
-                harness.charm.unit.status,
-                BlockedStatus(
-                    f"Creating/patching resources failed with code"
-                    f"{training_runtimes_resource_handler.side_effect.response.code}."
-                ),
-            )
+        harness.charm.on.install.emit()
+        assert harness.charm.unit.status == BlockedStatus(
+            f"TrainingRuntime resources creation failed: "
+            f"{training_runtimes_resource_handler.apply.side_effect.response.message}"
+        )
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")

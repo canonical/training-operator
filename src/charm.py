@@ -16,7 +16,7 @@ from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
-from ops import EventBase, InstallEvent, main
+from ops import main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
@@ -181,7 +181,7 @@ class TrainingOperatorCharm(CharmBase):
             self.logger.info("Not a leader, skipping setup")
             raise ErrorWithStatus("Waiting for leadership", WaitingStatus)
 
-    def _apply_k8s_resources(self, event: EventBase) -> None:
+    def _apply_k8s_resources(self) -> None:
         """Applies K8S resources."""
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
@@ -229,23 +229,23 @@ class TrainingOperatorCharm(CharmBase):
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")
 
-    def _on_event(self, event: EventBase) -> None:
+    def _on_event(self, _) -> None:
         """Perform all required actions the Charm."""
 
         try:
             self._check_leader()
-            self._apply_k8s_resources(event)
+            self._apply_k8s_resources()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
 
         self.model.unit.status = ActiveStatus()
 
-    def _on_install(self, event: InstallEvent):
+    def _on_install(self, _):
         """Perform installation only actions."""
         # apply K8S resources to speed up deployment
         try:
-            self._apply_k8s_resources(event)
+            self._apply_k8s_resources()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
