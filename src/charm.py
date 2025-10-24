@@ -5,7 +5,7 @@
 
 import logging
 
-from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
@@ -18,7 +18,7 @@ from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
 from ops import main
 from ops.charm import CharmBase
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 K8S_RESOURCE_FILES = [
     "src/templates/trainer-role_bindings_manifests.yaml.j2",
@@ -188,17 +188,15 @@ class TrainingOperatorCharm(CharmBase):
             self.crd_resource_handler.apply()
         except ApiError as error:
             self.logger.warning("Unexpected ApiError happened: %s", error)
-            raise ErrorWithStatus(
+            raise GenericCharmRuntimeError(
                 f"CRD resources creation failed: {error.status.message}",
-                BlockedStatus,
             )
         try:
             self.k8s_resource_handler.apply()
         except ApiError as error:
             self.logger.warning("Unexpected ApiError happened: %s", error)
-            raise ErrorWithStatus(
+            raise GenericCharmRuntimeError(
                 f"K8s resources creation failed: {error.status.message}",
-                BlockedStatus,
             )
         try:
             self.training_runtimes_resource_handler.apply()
@@ -222,9 +220,8 @@ class TrainingOperatorCharm(CharmBase):
                 raise ErrorWithStatus(msg, MaintenanceStatus)
             else:
                 self.logger.warning("Unexpected ApiError happened: %s", error)
-                raise ErrorWithStatus(
+                raise GenericCharmRuntimeError(
                     f"TrainingRuntime resources creation failed: {error.status.message}",
-                    BlockedStatus,
                 )
 
         self.model.unit.status = MaintenanceStatus("K8S resources created")

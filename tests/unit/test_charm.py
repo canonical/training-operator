@@ -4,8 +4,10 @@
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from charmed_kubeflow_chisme.exceptions import GenericCharmRuntimeError
 from lightkube.core.exceptions import ApiError
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops import ErrorStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 from ops.testing import Harness
 
 from charm import TrainingOperatorCharm
@@ -102,7 +104,7 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.ApiError", _FakeApiError)
-    def test_blocked_on_apierror_on_k8s_resource_handler(
+    def test_error_on_apierror_on_k8s_resource_handler(
         self, _: MagicMock, __: MagicMock, k8s_resource_handler: MagicMock, harness: Harness
     ):
         # Ensure the unit is in BlockedStatus
@@ -110,11 +112,9 @@ class TestCharm:
         k8s_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
-        harness.charm.on.install.emit()
-        assert harness.charm.unit.status == BlockedStatus(
-            f"K8s resources creation failed: "
-            f"{k8s_resource_handler.apply.side_effect.response.message}"
-        )
+        with pytest.raises(GenericCharmRuntimeError):
+            harness.charm.on.install.emit()
+            assert harness.charm.unit.status == ErrorStatus()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
@@ -132,11 +132,9 @@ class TestCharm:
         crd_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
-        harness.charm.on.install.emit()
-        assert harness.charm.unit.status == BlockedStatus(
-            f"CRD resources creation failed: "
-            f"{crd_resource_handler.apply.side_effect.response.message}"
-        )
+        with pytest.raises(GenericCharmRuntimeError):
+            harness.charm.on.install.emit()
+            assert harness.charm.unit.status == ErrorStatus()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
@@ -154,11 +152,9 @@ class TestCharm:
         training_runtimes_resource_handler.apply.side_effect = _FakeApiError()
 
         harness.begin()
-        harness.charm.on.install.emit()
-        assert harness.charm.unit.status == BlockedStatus(
-            f"TrainingRuntime resources creation failed: "
-            f"{training_runtimes_resource_handler.apply.side_effect.response.message}"
-        )
+        with pytest.raises(GenericCharmRuntimeError):
+            harness.charm.on.install.emit()
+            assert harness.charm.unit.status == ErrorStatus()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
