@@ -1,0 +1,9 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: deepspeed-simple
+spec:
+  runtimeRef:
+    name: deepspeed-distributed
+  trainer:
+    numNodes: 2

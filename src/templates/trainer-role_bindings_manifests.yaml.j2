@@ -1,0 +1,29 @@
+# manifests/blob/master/applications/trainer/upstream/base/rbac/role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ app_name }}-controller-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ app_name }}-controller-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ app_name }}-controller-manager
+    namespace: {{ namespace }}
+---
+# this role binding is required to allow serviceAccounts in every namespace permissions to read
+# clustertrainingruntimes
+# see issue: https://github.com/kubeflow/trainer/issues/2747
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ app_name }}-cluster-runtimes-view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ app_name }}-view
