@@ -9,6 +9,11 @@ on:
         default: ''
         required: false
         type: string
+      destination_channel:
+        description: CharmHub channel to publish to
+        required: false
+        default: ''
+        type: string
     secrets:
       CHARMCRAFT_CREDENTIALS:
         required: true
