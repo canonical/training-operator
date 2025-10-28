@@ -30,8 +30,8 @@ jobs:
       - name: Determine destination channel
         id: destination-channel
         run: |
-          GIT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
-          if [ $GIT_BRANCH = main-v2 ]; then
+          GIT_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          if [ "${GIT_BRANCH}" = "main-v2" ]; then
             destination_channel="latest/edge"
           else
             destination_channel=''
