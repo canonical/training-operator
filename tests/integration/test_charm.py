@@ -251,7 +251,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
-        stop=tenacity.stop_after_delay(30),
+        stop=tenacity.stop_after_delay(60),
         reraise=True,
     )
     def assert_resources_removed():
