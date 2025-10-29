@@ -246,22 +246,34 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
 
     Verify that all deployed resources that need to be removed are removed.
 
-    This test should be next before before test_upgrade(), because it removes deployed charm.
+    This test should be next after test_upgrade(), because it removes deployed charm.
     """
-    # remove deployed charm and verify that it is removed
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(60),
+        reraise=True,
+    )
+    def assert_resources_removed():
+        """Asserts on the resource removal.
+
+        Retries multiple times using tenacity to allow time for the resources to be deleted.
+        """
+        lightkube_client = lightkube.Client()
+        crd_list = lightkube_client.list(
+            CustomResourceDefinition,
+            labels=[("app.juju.is/created-by", APP_NAME)],
+            namespace=ops_test.model_name,
+        )
+        # testing for empty list (iterator)
+        _last = object()
+        assert next(crd_list, _last) is _last
+
+    # remove deployed charm and verify that it is removed alongside resources it created
     await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
     assert APP_NAME not in ops_test.model.applications
 
-    # verify that all resources that were deployed are removed
-    lightkube_client = lightkube.Client()
-    crd_list = lightkube_client.list(
-        CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", APP_NAME)],
-        namespace=ops_test.model_name,
-    )
-    # testing for empty list (iterator)
-    _last = object()
-    assert next(crd_list, _last) is _last
+    assert_resources_removed()
 
 
 @pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
