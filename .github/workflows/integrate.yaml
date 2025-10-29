@@ -76,6 +76,22 @@ jobs:
           sudo snap install concierge --classic
           sudo concierge prepare --trace
 
+      - name: Cache images locally
+        id: cache-images
+        shell: bash
+        run: |
+          IMAGES=(
+              "ghcr.io/kubeflow/trainer/deepspeed-runtime"
+              "ghcr.io/kubeflow/trainer/mlx-runtime"
+              "mpioperator/mpi-pi:openmpi"
+              "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
+          )
+
+          for image in "${IMAGES[@]}"; do
+              echo "Pulling $image"
+              sudo /snap/k8s/current/bin/ctr --address /run/containerd/containerd.sock --namespace k8s.io image pull "$image"
+          done
+
       - name: Run integration tests
         run: tox -e ${{ matrix.tox-environments }} -- --model testing
 
