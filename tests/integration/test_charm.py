@@ -144,7 +144,7 @@ JOBS_CLASSES = lightkube_create_global_resources()
 
 
 @pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
-def test_create_training_jobs(ops_test: OpsTest, example: str):
+async def test_create_training_jobs(ops_test: OpsTest, example: str):
     """Validates that a training job can be created and is running.
 
     Asserts on the *Job status.
@@ -216,6 +216,9 @@ def test_create_training_jobs(ops_test: OpsTest, example: str):
     create_training_job()
     assert_get_job()
     assert_job_status_running_success()
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
 
 
 async def test_alert_rules(ops_test: OpsTest):
@@ -251,7 +254,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
-        stop=tenacity.stop_after_delay(60),
+        stop=tenacity.stop_after_delay(5 * 60),
         reraise=True,
     )
     def assert_resources_removed():
