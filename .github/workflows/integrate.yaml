@@ -82,9 +82,6 @@ jobs:
         run: |
           IMAGES=(
               "ghcr.io/kubeflow/trainer/deepspeed-runtime:latest"
-              "ghcr.io/kubeflow/trainer/mlx-runtime:latest"
-              "docker.io/mpioperator/mpi-pi:openmpi"
-              "docker.io/pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
           )
 
           for image in "${IMAGES[@]}"; do
