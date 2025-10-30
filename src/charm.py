@@ -5,6 +5,8 @@
 
 import logging
 
+import lightkube
+import tenacity
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
@@ -16,6 +18,7 @@ from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import ApiError
 from lightkube.generic_resource import load_in_cluster_generic_resources
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from ops import main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
@@ -55,6 +58,13 @@ WEBHOOK_PORT = "443"
 WEBHOOK_TARGET_PORT = "9443"
 
 logger = logging.getLogger(__name__)
+
+
+# For errors when a TrainJob exists while it shouldn't
+class ObjectStillExistsError(Exception):
+    """Exception for when a K8s object exists, while it should have been removed."""
+
+    pass
 
 
 class TrainingOperatorCharm(CharmBase):
@@ -283,7 +293,14 @@ class TrainingOperatorCharm(CharmBase):
             delete_many(
                 self.trainjob_resource_handler.lightkube_client, trainjob_resources_manifests
             )
+            self.ensure_crd_is_deleted(
+                self.trainjob_resource_handler.lightkube_client, "trainjobs.trainer.kubeflow.org"
+            )
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
+            self.ensure_crd_is_deleted(
+                self.crd_resource_handler.lightkube_client,
+                "clustertrainingruntimes.trainer.kubeflow.org",
+            )
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as error:
             # do not log/report when resources were not found
@@ -291,6 +308,34 @@ class TrainingOperatorCharm(CharmBase):
                 self.logger.error(f"Failed to delete K8S resources, with error: {error}")
                 raise error
         self.unit.status = MaintenanceStatus("K8S resources removed")
+
+    @tenacity.retry(stop=tenacity.stop_after_delay(300), wait=tenacity.wait_fixed(5), reraise=True)
+    def ensure_crd_is_deleted(self, client: lightkube.Client, crd_name: str):
+        """Check if the CRD doesn't exist with retries.
+
+        The function will keep retrying until the CRD is deleted, and handle the
+        404 error once it gets deleted.
+
+        Args:
+            crd_name: The CRD to be checked if it is deleted.
+            client: The lightkube client to use for talking to K8s.
+
+        Raises:
+            ApiError: From lightkube, if there was an error aside from 404.
+            ObjectStillExistsError: If the Profile's namespace was not deleted after retries.
+        """
+        self.logger.info("Checking if CRD exists: %s", crd_name)
+        try:
+            client.get(CustomResourceDefinition, name=crd_name)
+            self.logger.info('CRD "%s" exists, retrying...', crd_name)
+            raise ObjectStillExistsError("CRD %s is not deleted.")
+        except ApiError as e:
+            if e.status.code == 404:
+                self.logger.info('CRD "%s" does not exist!', crd_name)
+                return
+            else:
+                # Raise any other error
+                raise
 
 
 if __name__ == "__main__":

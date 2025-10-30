@@ -249,11 +249,13 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.TrainingOperatorCharm.ensure_crd_is_deleted")
     @patch("charm.delete_many")
     def test_on_remove_success(
         self,
         delete_many: MagicMock,
         _: MagicMock,
+        __: MagicMock,
         trainjob_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
         k8s_resource_handler: MagicMock,
