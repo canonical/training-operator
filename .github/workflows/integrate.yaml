@@ -88,6 +88,7 @@ jobs:
               echo "Pulling $image"
               sudo /snap/k8s/current/bin/ctr --address /run/containerd/containerd.sock --namespace k8s.io image pull "$image" > /dev/null 2>&1
           done
+        if: ${{ matrix.tox-environments == 'integration' }}
 
       - name: Run integration tests
         run: tox -e ${{ matrix.tox-environments }} -- --model testing
