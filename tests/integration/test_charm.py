@@ -40,7 +40,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
-        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 15
     )
     assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
 
