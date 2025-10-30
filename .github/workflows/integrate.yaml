@@ -81,15 +81,15 @@ jobs:
         shell: bash
         run: |
           IMAGES=(
-              "ghcr.io/kubeflow/trainer/deepspeed-runtime"
-              "ghcr.io/kubeflow/trainer/mlx-runtime"
-              "mpioperator/mpi-pi:openmpi"
-              "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
+              "ghcr.io/kubeflow/trainer/deepspeed-runtime:latest"
+              "ghcr.io/kubeflow/trainer/mlx-runtime:latest"
+              "docker.io/mpioperator/mpi-pi:openmpi"
+              "docker.io/pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime"
           )
 
           for image in "${IMAGES[@]}"; do
               echo "Pulling $image"
-              sudo /snap/k8s/current/bin/ctr --address /run/containerd/containerd.sock --namespace k8s.io image pull "$image"
+              sudo /snap/k8s/current/bin/ctr --address /run/containerd/containerd.sock --namespace k8s.io image pull "$image" > /dev/null 2>&1
           done
 
       - name: Run integration tests
