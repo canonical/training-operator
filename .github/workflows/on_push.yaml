@@ -20,11 +20,11 @@ jobs:
     uses: ./.github/workflows/integrate.yaml
     secrets: inherit
 
-  # publish runs in series with tests, and only publishes if tests passes
-  publish-charm:
-    name: Publish Charm
+  destination-channel:
     runs-on: ubuntu-24.04
-    needs: tests
+    name: Determine destination channel
+    outputs:
+      destination-channel: ${{ steps.destination-channel.outputs.destination_channel }}
 
     steps:
       - name: Check out code
@@ -41,8 +41,13 @@ jobs:
           fi
           echo "destination_channel=$destination_channel" >> "$GITHUB_OUTPUT"
 
-      - name: Publish Charm
-        uses: ./.github/workflows/publish.yaml
-        with:
-          destination_channel: ${{ steps.destination-channel.outputs.destination_channel }}
-          secrets: inherit
+  # publish runs in series with tests, and only publishes if tests passes
+  publish-charm:
+    name: Publish Charm
+    needs: 
+      - tests
+      - destination-channel
+    uses: ./.github/workflows/publish.yaml
+    secrets: inherit
+    with:
+      destination_channel: ${{ needs.destination-channel.outputs.destination-channel }}
