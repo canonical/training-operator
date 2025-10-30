@@ -125,7 +125,8 @@ def lightkube_create_global_resources() -> dict:
     crds_kinds = [
         crd["spec"]["names"]
         for crd in yaml.safe_load_all(
-            Path("./src/templates/trainer-crds_manifests.yaml.j2").read_text()
+            Path("./src/templates/trainer-crds_runtimes_manifests.yaml.j2").read_text()
+            + Path("./src/templates/trainer-crds_trainjob_manifests.yaml.j2").read_text()
         )
     ]
     jobs_classes = {}

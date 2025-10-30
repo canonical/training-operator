@@ -36,9 +36,12 @@ K8S_RESOURCE_FILES = [
     "src/templates/jobset-mutatingwebhookconfiguration.yaml.j2",
     "src/templates/jobset-service.yaml.j2",
 ]
-CRD_RESOURCE_FILES = [
-    "src/templates/trainer-crds_manifests.yaml.j2",
+CRD_RUNTIMES_JOBSET_RESOURCE_FILES = [
+    "src/templates/trainer-crds_runtimes_manifests.yaml.j2",
     "src/templates/jobset-crds_manifests.yaml.j2",
+]
+CRD_TRAINJOB_RESOURCE_FILES = [
+    "src/templates/trainer-crds_trainjob_manifests.yaml.j2",
 ]
 TRAINING_RUNTIMES_FILES = [
     "src/training_runtimes/deepspeed_distributed.yaml.j2",
@@ -79,6 +82,7 @@ class TrainingOperatorCharm(CharmBase):
         self._k8s_resource_handler = None
         self._crd_resource_handler = None
         self._training_runtimes_resource_handler = None
+        self._trainjob_resource_handler = None
 
         self.dashboard_provider = GrafanaDashboardProvider(self)
 
@@ -145,7 +149,7 @@ class TrainingOperatorCharm(CharmBase):
         if not self._crd_resource_handler:
             self._crd_resource_handler = KubernetesResourceHandler(
                 field_manager=self._lightkube_field_manager,
-                template_files=CRD_RESOURCE_FILES,
+                template_files=CRD_RUNTIMES_JOBSET_RESOURCE_FILES,
                 context=self._context,
                 logger=self.logger,
             )
@@ -175,6 +179,23 @@ class TrainingOperatorCharm(CharmBase):
     def training_runtimes_resource_handler(self, handler: KubernetesResourceHandler):
         self._training_runtimes_resource_handler = handler
 
+    @property
+    def trainjob_resource_handler(self):
+        """Update K8S with TrainJob resources."""
+        if not self._trainjob_resource_handler:
+            self._trainjob_resource_handler = KubernetesResourceHandler(
+                field_manager=self._lightkube_field_manager,
+                template_files=CRD_TRAINJOB_RESOURCE_FILES,
+                context=self._context,
+                logger=self.logger,
+            )
+        load_in_cluster_generic_resources(self._trainjob_resource_handler.lightkube_client)
+        return self._trainjob_resource_handler
+
+    @trainjob_resource_handler.setter
+    def trainjob_resource_handler(self, handler: KubernetesResourceHandler):
+        self._trainjob_resource_handler = handler
+
     def _check_leader(self):
         """Check if this unit is a leader."""
         if not self.unit.is_leader():
@@ -186,6 +207,7 @@ class TrainingOperatorCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Creating K8S resources")
         try:
             self.crd_resource_handler.apply()
+            self.trainjob_resource_handler.apply()
         except ApiError as error:
             self.logger.warning("Unexpected ApiError happened: %s", error)
             raise GenericCharmRuntimeError(
@@ -254,9 +276,13 @@ class TrainingOperatorCharm(CharmBase):
     def _on_remove(self, _):
         """Remove all resources."""
         self.unit.status = MaintenanceStatus("Removing K8S resources")
+        trainjob_resources_manifests = self.trainjob_resource_handler.render_manifests()
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
         try:
+            delete_many(
+                self.trainjob_resource_handler.lightkube_client, trainjob_resources_manifests
+            )
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as error:
