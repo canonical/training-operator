@@ -230,7 +230,7 @@ async def test_alert_rules(ops_test: OpsTest):
     await assert_alert_rules(app, alert_rules)
 
 
-async def test_metrics_enpoint(ops_test: OpsTest):
+async def test_metrics_endpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
 
     This function gets all the metrics_endpoints from the relation data bag, checks if

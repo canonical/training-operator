@@ -121,7 +121,7 @@ class TestCharm:
         harness: Harness,
     ):
         # Ensure the unit is in BlockedStatus
-        # on exception when creating auth resources
+        # on exception when creating K8s resources
         k8s_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
@@ -143,7 +143,7 @@ class TestCharm:
         harness: Harness,
     ):
         # Ensure the unit is in BlockedStatus
-        # on exception when creating auth resources
+        # on exception when creating CRD resources
         crd_resource_handler.apply.side_effect = _FakeApiError(code=400, message="invalid name")
 
         harness.begin()
@@ -165,7 +165,7 @@ class TestCharm:
         harness: Harness,
     ):
         # Ensure the unit is in BlockedStatus
-        # on exception when creating auth resources
+        # on exception when creating TrainJob CRD resources
         trainjob_resource_handler.apply.side_effect = _FakeApiError(
             code=400, message="invalid name"
         )

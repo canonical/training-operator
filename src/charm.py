@@ -4,9 +4,11 @@
 #
 
 import logging
+from pathlib import Path
 
 import lightkube
 import tenacity
+import yaml
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
@@ -39,8 +41,10 @@ K8S_RESOURCE_FILES = [
     "src/templates/jobset-mutatingwebhookconfiguration.yaml.j2",
     "src/templates/jobset-service.yaml.j2",
 ]
-CRD_RUNTIMES_JOBSET_RESOURCE_FILES = [
+CRD_RUNTIMES_RESOURCE_FILES = [
     "src/templates/trainer-crds_runtimes_manifests.yaml.j2",
+]
+CRD_JOBSET_RESOURCE_FILES = [
     "src/templates/jobset-crds_manifests.yaml.j2",
 ]
 CRD_TRAINJOB_RESOURCE_FILES = [
@@ -159,7 +163,7 @@ class TrainingOperatorCharm(CharmBase):
         if not self._crd_resource_handler:
             self._crd_resource_handler = KubernetesResourceHandler(
                 field_manager=self._lightkube_field_manager,
-                template_files=CRD_RUNTIMES_JOBSET_RESOURCE_FILES,
+                template_files=CRD_RUNTIMES_RESOURCE_FILES + CRD_JOBSET_RESOURCE_FILES,
                 context=self._context,
                 logger=self.logger,
             )
@@ -293,14 +297,13 @@ class TrainingOperatorCharm(CharmBase):
             delete_many(
                 self.trainjob_resource_handler.lightkube_client, trainjob_resources_manifests
             )
-            self.ensure_crd_is_deleted(
-                self.trainjob_resource_handler.lightkube_client, "trainjobs.trainer.kubeflow.org"
-            )
+            for trainjob_crd in _extract_crds_names(CRD_TRAINJOB_RESOURCE_FILES):
+                self.ensure_crd_is_deleted(
+                    self.trainjob_resource_handler.lightkube_client, trainjob_crd
+                )
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
-            self.ensure_crd_is_deleted(
-                self.crd_resource_handler.lightkube_client,
-                "clustertrainingruntimes.trainer.kubeflow.org",
-            )
+            for runtime_crd in _extract_crds_names(CRD_RUNTIMES_RESOURCE_FILES):
+                self.ensure_crd_is_deleted(self.crd_resource_handler.lightkube_client, runtime_crd)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
         except ApiError as error:
             # do not log/report when resources were not found
@@ -328,7 +331,7 @@ class TrainingOperatorCharm(CharmBase):
         try:
             client.get(CustomResourceDefinition, name=crd_name)
             self.logger.info('CRD "%s" exists, retrying...', crd_name)
-            raise ObjectStillExistsError("CRD %s is not deleted.")
+            raise ObjectStillExistsError("CRD %s is not deleted.", crd_name)
         except ApiError as e:
             if e.status.code == 404:
                 self.logger.info('CRD "%s" does not exist!', crd_name)
@@ -336,6 +339,15 @@ class TrainingOperatorCharm(CharmBase):
             else:
                 # Raise any other error
                 raise
+
+
+def _extract_crds_names(manifest_files: list[str]):
+    manifests = "".join([Path(manifest).read_text() for manifest in manifest_files])
+    crds_yaml = yaml.safe_load_all(manifests)
+    crds_names = []
+    for crd in crds_yaml:
+        crds_names.append(crd.get("metadata").get("name"))
+    return crds_names
 
 
 if __name__ == "__main__":

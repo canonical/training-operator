@@ -77,16 +77,18 @@ jobs:
           sudo concierge prepare --trace
 
       - name: Cache images locally
-        id: cache-images
         shell: bash
         run: |
+          # this step is required to prefetch heavy images to avoid false-positive failures in
+          # integration tests due to timeouts unrelated to the charm itself
           IMAGES=(
               "ghcr.io/kubeflow/trainer/deepspeed-runtime:latest"
           )
-
           for image in "${IMAGES[@]}"; do
               echo "Pulling $image"
-              sudo /snap/k8s/current/bin/ctr --address /run/containerd/containerd.sock --namespace k8s.io image pull "$image" > /dev/null 2>&1
+              # explaination of this command can be found in Canonical K8s image management doc
+              # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
+              sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "$image" > /dev/null 2>&1
           done
         if: ${{ matrix.tox-environments == 'integration' }}
 
