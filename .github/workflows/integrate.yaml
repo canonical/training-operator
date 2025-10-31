@@ -81,14 +81,23 @@ jobs:
         run: |
           # this step is required to prefetch heavy images to avoid false-positive failures in
           # integration tests due to timeouts unrelated to the charm itself
-          IMAGES=(
-              "ghcr.io/kubeflow/trainer/deepspeed-runtime:latest"
+          RUNTIME_TEMPLATE_FILES=(
+            "src/training_runtimes/deepspeed_distributed.yaml.j2"
           )
-          for image in "${IMAGES[@]}"; do
-              echo "Pulling $image"
-              # explaination of this command can be found in Canonical K8s image management doc
-              # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
-              sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "$image" > /dev/null 2>&1
+          for TPL in "${RUNTIME_TEMPLATE_FILES[@]}"; do
+            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${TPL}")
+            # set internal field separator to ":" and tokenize the image string
+            IFS=':' read -ra SPLIT_IMAGE <<< "${IMAGE}"
+            HASH="latest"
+            # handle case in which image already has an hash
+            if [ ${#SPLIT_IMAGE[@]} = 2 ]; then
+              HASH=${SPLIT_IMAGE[-1]}
+            fi
+            FINAL_IMAGE="${SPLIT_IMAGE[0]}:${HASH}"
+            echo "Pulling ${FINAL_IMAGE}"
+            # explanation of this command can be found in Canonical K8s image management doc
+            # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
+            sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
           done
         if: ${{ matrix.tox-environments == 'integration' }}
 
