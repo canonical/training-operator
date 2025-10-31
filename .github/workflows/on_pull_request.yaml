@@ -14,33 +14,9 @@ jobs:
     uses: ./.github/workflows/integrate.yaml
     secrets: inherit
 
-  destination-channel:
-    runs-on: ubuntu-24.04
-    name: Determine destination channel
-    outputs:
-      destination-channel: ${{ steps.destination-channel.outputs.destination_channel }}
-
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Determine destination channel
-        id: destination-channel
-        run: |
-          GIT_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
-          if [ "${GIT_BRANCH}" = "main-v2" ]; then
-            destination_channel="latest/edge"
-          else
-            destination_channel=''
-          fi
-          echo "destination_channel=$destination_channel" >> "$GITHUB_OUTPUT"
-
-  # publish runs in series with tests, and only publishes if tests passes
+  # publish runs in parallel with tests, as we always publish in this situation
   publish-charm:
     name: Publish Charm
-    needs: 
-      - destination-channel
     uses: ./.github/workflows/publish.yaml
     secrets: inherit
-    with:
-      destination_channel: ${{ needs.destination-channel.outputs.destination-channel }}
+
