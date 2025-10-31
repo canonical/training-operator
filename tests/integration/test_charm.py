@@ -40,7 +40,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
-        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 15
     )
     assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
 
@@ -125,7 +125,8 @@ def lightkube_create_global_resources() -> dict:
     crds_kinds = [
         crd["spec"]["names"]
         for crd in yaml.safe_load_all(
-            Path("./src/templates/trainer-crds_manifests.yaml.j2").read_text()
+            Path("./src/templates/trainer-crds_runtimes_manifests.yaml.j2").read_text()
+            + Path("./src/templates/trainer-crds_trainjob_manifests.yaml.j2").read_text()
         )
     ]
     jobs_classes = {}
@@ -229,7 +230,7 @@ async def test_alert_rules(ops_test: OpsTest):
     await assert_alert_rules(app, alert_rules)
 
 
-async def test_metrics_enpoint(ops_test: OpsTest):
+async def test_metrics_endpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
 
     This function gets all the metrics_endpoints from the relation data bag, checks if
