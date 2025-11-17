@@ -28,6 +28,8 @@ CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "2.0/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
+TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml.j2"
+TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml.j2"
 
 
 @pytest.mark.abort_on_fail
@@ -53,7 +55,8 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # Wait for the kubeflow-trainer workload Pod to run and the operator to start
     await ensure_kubeflow_trainer_is_running(ops_test)
-    await ensure_jobset_is_running(ops_test)
+    await ensure_workload_is_running(ops_test, "jobset")
+    await ensure_workload_is_running(ops_test, "lws")
 
 
 @tenacity.retry(
@@ -93,9 +96,9 @@ async def ensure_kubeflow_trainer_is_running(ops_test: OpsTest) -> None:
     stop=tenacity.stop_after_delay(30),
     reraise=True,
 )
-async def ensure_jobset_is_running(ops_test: OpsTest) -> None:
-    """Waits until the jobset workload Pod's status is Running."""
-    # The jobset workload Pod gets a random name, the easiest way
+async def ensure_workload_is_running(ops_test: OpsTest, workload: str) -> None:
+    """Waits until the LeaderWorkerSet workload Pod's status is Running."""
+    # The LeaderWorkerSet workload Pod gets a random name, the easiest way
     # to wait for it to be ready is using kubectl directly
     await ops_test.run(
         "kubectl",
@@ -117,7 +120,7 @@ async def ensure_jobset_is_running(ops_test: OpsTest) -> None:
         "status.phase!=Running",
         check=True,
     )
-    assert f"{APP_NAME}-jobset" not in out
+    assert f"{APP_NAME}-{workload}" not in out
 
 
 def lightkube_create_global_resources() -> dict:
@@ -125,8 +128,8 @@ def lightkube_create_global_resources() -> dict:
     crds_kinds = [
         crd["spec"]["names"]
         for crd in yaml.safe_load_all(
-            Path("./src/templates/trainer-crds_runtimes_manifests.yaml.j2").read_text()
-            + Path("./src/templates/trainer-crds_trainjob_manifests.yaml.j2").read_text()
+            Path(TRAINER_CRD_RUNTIMES_RESOURCE_FILE).read_text()
+            + Path(TRAINER_CRD_TRAINJOB_RESOURCE_FILE).read_text()
         )
     ]
     jobs_classes = {}

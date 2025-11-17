@@ -25,9 +25,8 @@ spec:
           command:
             - /manager
           args:
-            - --webhook-service-name={{ app_name }}-controller-manager
-            - --metrics-bind-address=:{{ metrics_port }}
-            - --metrics-secure=false
+            - --config=/controller_manager_config.yaml
+            - --zap-log-level=2
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -37,6 +36,10 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
+            - mountPath: /controller_manager_config.yaml
+              name: {{ app_name }}-config
+              readOnly: true
+              subPath: controller_manager_config.yaml
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: cert
               readOnly: true
@@ -56,8 +59,10 @@ spec:
             timeoutSeconds: 3
       serviceAccountName: {{ app_name }}-controller-manager
       volumes:
+        - configMap:
+            name: {{ app_name }}-config
+          name: {{ app_name }}-config
         - name: cert
           secret:
             defaultMode: 420
             secretName: {{ app_name }}-webhook-cert
----

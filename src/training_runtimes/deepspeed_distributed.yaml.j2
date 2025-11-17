@@ -1,25 +1,21 @@
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:
-  name: deepspeed-distributed
   labels:
     trainer.kubeflow.org/framework: deepspeed
+  name: deepspeed-distributed
 spec:
   mlPolicy:
-    numNodes: 1
     mpi:
-      numProcPerNode: 1
       mpiImplementation: OpenMPI
-      sshAuthMountPath: /home/mpiuser/.ssh
+      numProcPerNode: 1
       runLauncherAsNode: true
+      sshAuthMountPath: /home/mpiuser/.ssh
+    numNodes: 1
   template:
     spec:
       network:
         publishNotReadyAddresses: true
-      successPolicy:
-        operator: All
-        targetReplicatedJobs:
-          - launcher
       replicatedJobs:
         - name: launcher
           template:
@@ -28,9 +24,6 @@ spec:
                 trainer.kubeflow.org/trainjob-ancestor-step: trainer
             spec:
               template:
-                metadata:
-                  labels:
-                    sidecar.istio.io/inject: 'false'
                 spec:
                   containers:
                     - name: node
@@ -60,3 +53,7 @@ spec:
                         tcpSocket:
                           port: 2222
                         initialDelaySeconds: 5
+      successPolicy:
+        operator: All
+        targetReplicatedJobs:
+        - launcher
