@@ -1,16 +1,16 @@
 options:
   kubeflow-trainer-image:
-    default: ghcr.io/kubeflow/trainer/trainer-controller-manager
+    default: docker.io/charmedkubeflow/kubeflow-trainer:2.1.0-ed40181
     description: |
       Container image to be used by the Kubeflow Trainer workload.
     type: string
   jobset-image:
-    default: us-central1-docker.pkg.dev/k8s-staging-images/jobset/jobset:v0.10.1
+    default: docker.io/charmedkubeflow/jobset:0.10.1-ed40181
     description: |
       Container image to be used by the JobSet workload.
     type: string
   lws-image:
-    default: us-central1-docker.pkg.dev/k8s-staging-images/lws/lws:main
+    default: docker.io/charmedkubeflow/leaderworkerset:0.7.0-ed40181
     description: |
       Container image to be used by the Leader Worker Set workload.
     type: string
