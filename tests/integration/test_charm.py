@@ -28,8 +28,8 @@ CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "2.0/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
-TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml.j2"
-TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml.j2"
+TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml"
+TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml"
 
 
 @pytest.mark.abort_on_fail

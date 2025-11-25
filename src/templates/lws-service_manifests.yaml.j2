@@ -29,9 +29,9 @@ metadata:
   namespace: {{ namespace }}
 spec:
   ports:
-  - port: 443
+  - port: {{ webhook_port }}
     protocol: TCP
-    targetPort: 9443
+    targetPort: {{ webhook_target_port }}
   selector:
     app.kubernetes.io/component: {{ app_name }}-lws-controller
     control-plane: {{ app_name }}-controller-manager

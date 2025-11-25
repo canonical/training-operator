@@ -36,8 +36,8 @@ ISTIO_PILOT_TRUST = True
 
 log = logging.getLogger(__name__)
 
-TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml.j2"
-TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml.j2"
+TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml"
+TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml"
 
 
 def _build_crd_kinds():

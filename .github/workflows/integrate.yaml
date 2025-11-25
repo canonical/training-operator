@@ -81,11 +81,11 @@ jobs:
         run: |
           # this step is required to prefetch heavy images to avoid false-positive failures in
           # integration tests due to timeouts unrelated to the charm itself
-          RUNTIME_TEMPLATE_FILES=(
-            "src/training_runtimes/deepspeed_distributed.yaml.j2"
+          RUNTIME_FILES=(
+            "src/training_runtimes/deepspeed_distributed.yaml"
           )
-          for TPL in "${RUNTIME_TEMPLATE_FILES[@]}"; do
-            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${TPL}")
+          for RUNTIME_FILE in "${RUNTIME_FILES[@]}"; do
+            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${RUNTIME_FILE}")
             # set internal field separator to ":" and tokenize the image string
             IFS=':' read -ra SPLIT_IMAGE <<< "${IMAGE}"
             HASH="latest"

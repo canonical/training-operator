@@ -30,28 +30,28 @@ K8S_RESOURCE_FILES = [
     "src/templates/trainer-role_bindings_manifests.yaml.j2",
     "src/templates/trainer-roles_manifests.yaml.j2",
     "src/templates/trainer-serviceaccount_manifests.yaml.j2",
-    "src/templates/trainer-secret.yaml.j2",
-    "src/templates/trainer-deployment.yaml.j2",
-    "src/templates/trainer-validatingwebhookconfiguration.yaml.j2",
-    "src/templates/trainer-service.yaml.j2",
+    "src/templates/trainer-secret_manifests.yaml.j2",
+    "src/templates/trainer-deployment_manifests.yaml.j2",
+    "src/templates/trainer-validatingwebhookconfiguration_manifests.yaml.j2",
+    "src/templates/trainer-service_manifests.yaml.j2",
     "src/templates/jobset-rbac_manifests.yaml.j2",
-    "src/templates/jobset-secret.yaml.j2",
-    "src/templates/jobset-configmap.yaml.j2",
-    "src/templates/jobset-deployment.yaml.j2",
-    "src/templates/jobset-validatingwebhookconfiguration.yaml.j2",
-    "src/templates/jobset-mutatingwebhookconfiguration.yaml.j2",
-    "src/templates/jobset-service.yaml.j2",
+    "src/templates/jobset-secret_manifests.yaml.j2",
+    "src/templates/jobset-configmap_manifests.yaml.j2",
+    "src/templates/jobset-deployment_manifests.yaml.j2",
+    "src/templates/jobset-validatingwebhookconfiguration_manifests.yaml.j2",
+    "src/templates/jobset-mutatingwebhookconfiguration_manifests.yaml.j2",
+    "src/templates/jobset-service_manifests.yaml.j2",
     "src/templates/lws-rbac_manifests.yaml.j2",
     "src/templates/lws-secret_manifests.yaml.j2",
     "src/templates/lws-configmap_manifests.yaml.j2",
     "src/templates/lws-deployment_manifests.yaml.j2",
-    "src/templates/lws-validatingwebhookconfiguration.yaml.j2",
-    "src/templates/lws-mutatingwebhookconfiguration.yaml.j2",
+    "src/templates/lws-validatingwebhookconfiguration_manifests.yaml.j2",
+    "src/templates/lws-mutatingwebhookconfiguration_manifests.yaml.j2",
     "src/templates/lws-service_manifests.yaml.j2",
     "src/templates/lws-serviceaccount_manifests.yaml.j2",
 ]
 CRD_RUNTIMES_RESOURCE_FILES = [
-    "src/templates/trainer-crds_runtimes_manifests.yaml.j2",
+    "src/templates/trainer-crds_runtimes_manifests.yaml",
 ]
 CRD_JOBSET_RESOURCE_FILES = [
     "src/templates/jobset-crds_manifests.yaml.j2",
@@ -60,13 +60,13 @@ CRD_LWS_RESOURCE_FILES = [
     "src/templates/lws-crds_manifests.yaml.j2",
 ]
 CRD_TRAINJOB_RESOURCE_FILES = [
-    "src/templates/trainer-crds_trainjob_manifests.yaml.j2",
+    "src/templates/trainer-crds_trainjob_manifests.yaml",
 ]
 TRAINING_RUNTIMES_FILES = [
-    "src/training_runtimes/deepspeed_distributed.yaml.j2",
-    "src/training_runtimes/mlx_distributed.yaml.j2",
-    "src/training_runtimes/mpi_distributed.yaml.j2",
-    "src/training_runtimes/torch_distributed.yaml.j2",
+    "src/training_runtimes/deepspeed_distributed.yaml",
+    "src/training_runtimes/mlx_distributed.yaml",
+    "src/training_runtimes/mpi_distributed.yaml",
+    "src/training_runtimes/torch_distributed.yaml",
 ]
 METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
