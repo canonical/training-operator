@@ -1,25 +1,21 @@
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:
-  name: mlx-distributed
   labels:
     trainer.kubeflow.org/framework: mlx
+  name: mlx-distributed
 spec:
   mlPolicy:
-    numNodes: 1
     mpi:
-      numProcPerNode: 1
       mpiImplementation: OpenMPI
-      sshAuthMountPath: /home/mpiuser/.ssh
+      numProcPerNode: 1
       runLauncherAsNode: true
+      sshAuthMountPath: /home/mpiuser/.ssh
+    numNodes: 1
   template:
     spec:
       network:
         publishNotReadyAddresses: true
-      successPolicy:
-        operator: All
-        targetReplicatedJobs:
-          - launcher
       replicatedJobs:
         - name: launcher
           template:
@@ -29,28 +25,14 @@ spec:
             spec:
               template:
                 metadata:
-                    labels:
-                      sidecar.istio.io/inject: 'false'
+                  labels:
+                    sidecar.istio.io/inject: 'false'
                 spec:
                   containers:
                     - name: node
                       image: ghcr.io/kubeflow/trainer/mlx-runtime
                       securityContext:
                         runAsUser: 1000
-                      command:
-                        - mpirun
-                        - -n
-                        - "1"
-                        - bash
-                        - -c
-                        - |
-                          echo "MLX Distributed Runtime"
-
-                          echo "--------------------------------------"
-                          set -e
-                          mpirun --version
-                          python --version
-                          pip list
         - name: node
           template:
             spec:
@@ -74,3 +56,7 @@ spec:
                         tcpSocket:
                           port: 2222
                         initialDelaySeconds: 5
+      successPolicy:
+        operator: All
+        targetReplicatedJobs:
+        - launcher
