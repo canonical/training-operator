@@ -2,20 +2,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    control-plane: {{ namespace }}-{{ app_name }}
-  name: {{ app_name }}
-  namespace: {{ namespace }}
+    control-plane: "{{ namespace }}-{{ app_name }}"
+  name: "{{ app_name }}"
+  namespace: "{{ namespace }}"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      control-plane: {{ namespace }}-{{ app_name }}
+      control-plane: "{{ namespace }}-{{ app_name }}"
   template:
     metadata:
       annotations:
         sidecar.istio.io/inject: "false"
       labels:
-        control-plane: {{ namespace }}-{{ app_name }}
+        control-plane: "{{ namespace }}-{{ app_name }}"
     spec:
       containers:
       - command:
@@ -29,13 +29,13 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: {{ training_operator_image }}
+        image: "{{ training_operator_image }}"
         # This argument is required because the training-operator controller will
         # use "training-operator" by default, which in this case, is already used
         # by the charm and cannot be used by the workload.
         # This name should correspond to the name in service.yaml.j2
         args:
-        - --webhook-service-name={{ app_name }}-workload
+        - --webhook-service-name="{{ app_name }}-workload"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -43,7 +43,7 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 20
           timeoutSeconds: 3
-        name: {{ app_name }}
+        name: "{{ app_name }}"
         ports:
         - containerPort: {{ metrics_port }}
         - containerPort: {{ webhook_target_port }}
@@ -62,10 +62,10 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
-      serviceAccountName: {{ app_name }}-workload
+      serviceAccountName: "{{ app_name }}-workload"
       terminationGracePeriodSeconds: 10
       volumes:
       - name: cert
         secret:
           defaultMode: 420
-          secretName: {{ app_name }}-webhook-cert
+          secretName: "{{ app_name }}-webhook-cert"
