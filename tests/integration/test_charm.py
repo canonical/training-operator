@@ -227,6 +227,57 @@ async def test_metrics_endpoint(ops_test: OpsTest):
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
+def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to this charm.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/templates/deployment.yaml.j2`.
+    """
+    charm_pods: list = get_pod_names(model_name, APP_NAME)
+    statefulset_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}-charm")
+    deployment_container_name = deployment_template["spec"]["template"]["spec"]["containers"][0][
+        "name"
+    ]
+    deployment_container_security_context = deployment_template["spec"]["template"]["spec"][
+        "containers"
+    ][0]["securityContext"]
+    pod_container_map = {}
+
+    for charm_pod in charm_pods:
+        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
+    for pod in statefulset_pods:
+        pod_container_map[pod] = {deployment_container_name: deployment_container_security_context}
+    return pod_container_map
+
+
+async def test_container_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+):
+    """Test container security context is correctly set.
+
+    Verify that container spec defines the security context with correct
+    user ID and group ID.
+    """
+    failed_checks = []
+    pod_container_map = build_pod_container_map(ops_test.model_name, DEPLOYMENT_YAML)
+    for pod, pod_containers in pod_container_map.items():
+        for container in pod_containers.keys():
+            try:
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
+                assert_security_context(
+                    lightkube_client,
+                    pod,
+                    container,
+                    pod_containers,
+                    ops_test.model_name,
+                )
+            except AssertionError as err:
+                failed_checks.append(f"{pod}/{container}: {err}")
+    assert failed_checks == []
+
+
 @pytest.mark.abort_on_fail
 async def test_remove_with_resources_present(ops_test: OpsTest):
     """Test remove with all resources deployed.
@@ -314,59 +365,6 @@ async def test_upgrade(ops_test: OpsTest):
     for rule in cluster_role.rules:
         if rule.apiGroups == "kubeflow.org":
             assert "paddlejobs" in rule.resources
-
-
-def build_pod_container_map(model_name: str, metacontroller_template: dict) -> dict[str, dict]:
-    """Build full map of pods:containers belonging to this charm.
-
-    This function builds a custom mapping of security context for pods and containers,
-    necessary because some pods are not directly spawned by juju but are defined in
-    `src/files/manifests/metacontroller.yaml`.
-    """
-    charm_pods: list = get_pod_names(model_name, APP_NAME)
-    statefulset_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}-charm")
-    metacontroller_container_name = metacontroller_template["spec"]["template"]["spec"][
-        "containers"
-    ][0]["name"]
-    metacontroller_container_security_context = metacontroller_template["spec"]["template"][
-        "spec"
-    ]["containers"][0]["securityContext"]
-    pod_container_map = {}
-
-    for charm_pod in charm_pods:
-        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
-    for pod in statefulset_pods:
-        pod_container_map[pod] = {
-            metacontroller_container_name: metacontroller_container_security_context
-        }
-    return pod_container_map
-
-
-async def test_container_security_context(
-    ops_test: OpsTest,
-    lightkube_client: Client,
-):
-    """Test container security context is correctly set.
-
-    Verify that container spec defines the security context with correct
-    user ID and group ID.
-    """
-    failed_checks = []
-    pod_container_map = build_pod_container_map(ops_test.model_name, DEPLOYMENT_YAML)
-    for pod, pod_containers in pod_container_map.items():
-        for container in pod_containers.keys():
-            try:
-                logger.info("Checking security context for container %s (pod: %s)", container, pod)
-                assert_security_context(
-                    lightkube_client,
-                    pod,
-                    container,
-                    pod_containers,
-                    ops_test.model_name,
-                )
-            except AssertionError as err:
-                failed_checks.append(f"{pod}/{container}: {err}")
-    assert failed_checks == []
 
 
 @pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
