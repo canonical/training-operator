@@ -39,6 +39,7 @@ WEBHOOK_TARGET_PORT = "9443"
 DEPLOYMENT_YAML = yaml.safe_load(
     Template(DEPLOYMENT_FILE).render(
         **{
+            "app_name": APP_NAME,
             "metrics_port": METRICS_PORT,
             "webhook_target_port": WEBHOOK_TARGET_PORT,
         }
@@ -235,7 +236,7 @@ def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[
     `src/templates/deployment.yaml.j2`.
     """
     charm_pods: list = get_pod_names(model_name, APP_NAME)
-    deployment_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}")
+    deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-manager")
     deployment_container_name = deployment_template["spec"]["template"]["spec"]["containers"][0][
         "name"
     ]
