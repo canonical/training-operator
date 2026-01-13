@@ -235,7 +235,7 @@ def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[
     `src/templates/deployment.yaml.j2`.
     """
     charm_pods: list = get_pod_names(model_name, APP_NAME)
-    statefulset_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}-charm")
+    deployment_pods: list = get_pod_names(model_name, f"{model_name}-{APP_NAME}")
     deployment_container_name = deployment_template["spec"]["template"]["spec"]["containers"][0][
         "name"
     ]
@@ -246,7 +246,7 @@ def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[
 
     for charm_pod in charm_pods:
         pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
-    for pod in statefulset_pods:
+    for pod in deployment_pods:
         pod_container_map[pod] = {deployment_container_name: deployment_container_security_context}
     return pod_container_map
 
