@@ -14,5 +14,5 @@ spec:
       protocol: TCP
       targetPort: {{ webhook_target_port }}
   selector:
-    app.kubernetes.io/name: {{ app_name }}
+    app.kubernetes.io/name: {{ app_name }}-manager
     app.kubernetes.io/component: manager

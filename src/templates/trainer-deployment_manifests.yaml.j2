@@ -5,17 +5,17 @@ metadata:
   name: {{ app_name }}
   namespace: {{ namespace }}
   labels:
-    app.kubernetes.io/name: {{ app_name }}
+    app.kubernetes.io/name: {{ app_name }}-manager
     app.kubernetes.io/component: manager
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ app_name }}
+      app.kubernetes.io/name: {{ app_name }}-manager
       app.kubernetes.io/component: manager
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ app_name }}
+        app.kubernetes.io/name: {{ app_name }}-manager
         app.kubernetes.io/component: manager
         sidecar.istio.io/inject: "false"
     spec:
