@@ -264,15 +264,13 @@ async def test_create_training_jobs(ops_test: OpsTest, example: str):
         """
         job_status = lightkube_client.get(
             job_class.Status, name=job_object.metadata.name, namespace=namespace
-        ).status
-        logger.info("Job status: %s", job_status)
-        status_type = job_status["conditions"][-1]["type"]
+        ).status["conditions"][-1]["type"]
 
         # Check whether the last status of *Job is Running/Success
-        assert status_type in [
+        assert job_status in [
             "Running",
             "Complete",
-        ], f"{job_object.metadata.name} was not running or did not succeed (status == {status_type})"
+        ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
 
     create_training_job()
     assert_get_job()
