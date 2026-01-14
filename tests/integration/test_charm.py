@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 JOBSET_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
-LWS_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
-TRAINER_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
+LWS_DEPLOYMENT_FILE = Path("./src/templates/lws-deployment_manifests.yaml.j2").read_text()
+TRAINER_DEPLOYMENT_FILE = Path("./src/templates/trainer-deployment_manifests.yaml.j2").read_text()
 APP_NAME = METADATA["name"]
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "2.0/stable"
