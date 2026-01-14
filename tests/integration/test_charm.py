@@ -22,7 +22,9 @@ from charmed_kubeflow_chisme.testing import (
 )
 from jinja2 import Template
 from lightkube import Client
+from lightkube.models.core_v1 import Capabilities
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.core_v1 import Pod
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
 
@@ -58,7 +60,7 @@ LWS_DEPLOYMENT_YAML = yaml.safe_load(
         }
     )
 )
-TRAINER_DEPLOYMENT_YAML = yaml.safe_load(
+MANAGER_DEPLOYMENT_YAML = yaml.safe_load(
     Template(TRAINER_DEPLOYMENT_FILE).render(
         **{
             "app_name": APP_NAME,
@@ -67,12 +69,21 @@ TRAINER_DEPLOYMENT_YAML = yaml.safe_load(
         }
     )
 )
+EXPECTED_COMMON_POD_SECURITY_CONTEXT = {"runAsNonRoot": True}
+EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": Capabilities(drop=["ALL"]),
+}
+
+
+class InvalidSecurityContextException(Exception):
+    pass
 
 
 @pytest.fixture(scope="session")
 def lightkube_client() -> Client:
     """Returns lightkube Kubernetes client"""
-    client = Client(field_manager=f"{APP_NAME}")
+    client = Client()
     return client
 
 
@@ -291,72 +302,76 @@ async def test_metrics_endpoint(ops_test: OpsTest):
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
-def build_pod_container_map(model_name: str) -> dict[str, dict]:
-    """Build full map of pods:containers belonging to this charm.
+def build_charm_pod_container_map(model_name: str) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the charm deployment.
 
-    This function builds a custom mapping of security context for pods and containers,
-    necessary because some pods are not directly spawned by juju but are defined in
-    `src/templates/deployment.yaml.j2`.
+    This function builds a mapping of security context for pods and containers
+    spawned by juju. This function allows to reuse the same test code for all pods
+    of the charm.
     """
     charm_pods: list = get_pod_names(model_name, APP_NAME)
-    trainer_deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-manager")
-    lws_deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-lws")
-    jobset_deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-jobset")
-    trainer_deployment_container_name = TRAINER_DEPLOYMENT_YAML["spec"]["template"]["spec"][
-        "containers"
-    ][0]["name"]
-    trainer_deployment_container_security_context = TRAINER_DEPLOYMENT_YAML["spec"]["template"][
-        "spec"
-    ]["containers"][0]["securityContext"]
-    lws_deployment_container_name = LWS_DEPLOYMENT_YAML["spec"]["template"]["spec"]["containers"][
-        0
-    ]["name"]
-    lws_deployment_container_security_context = LWS_DEPLOYMENT_YAML["spec"]["template"]["spec"][
-        "containers"
-    ][0]["securityContext"]
-    jobset_deployment_container_name = JOBSET_DEPLOYMENT_YAML["spec"]["template"]["spec"][
-        "containers"
-    ][0]["name"]
-    jobset_deployment_container_security_context = JOBSET_DEPLOYMENT_YAML["spec"]["template"][
-        "spec"
-    ]["containers"][0]["securityContext"]
     pod_container_map = {}
-
     for charm_pod in charm_pods:
         pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
-    for pod in trainer_deployment_pods:
-        pod_container_map[pod] = {
-            trainer_deployment_container_name: trainer_deployment_container_security_context
-        }
-    for pod in lws_deployment_pods:
-        pod_container_map[pod] = {
-            lws_deployment_container_name: lws_deployment_container_security_context
-        }
-    for pod in jobset_deployment_pods:
-        pod_container_map[pod] = {
-            jobset_deployment_container_name: jobset_deployment_container_security_context
-        }
-    logger.critical(pod_container_map)
     return pod_container_map
 
 
+def build_pod_container_map(model_name: str, deployment: str) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the specified deployment.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/templates/*deployment.yaml.j2`.
+    """
+    deployment_name = f"{APP_NAME}-{deployment}"
+    deployment_pods: list = get_pod_names(model_name, deployment_name)
+    deployment_yaml = globals().get(f"{deployment.upper()}_DEPLOYMENT_YAML")
+    container_name = deployment_yaml["spec"]["template"]["spec"]["containers"][0]["name"]
+    pod_container_map = {}
+    for pod in deployment_pods:
+        pod_container_map[pod] = {container_name: EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT}
+    return pod_container_map
+
+
+@pytest.mark.parametrize("deployment", ["lws", "jobset"])
+async def test_pod_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    deployment: str,
+):
+    """Test pod security context is correctly set.
+
+    Verify that pod spec defines the security context with correct configuration.
+    """
+    deployment_pods: list[str] = get_pod_names(ops_test.model_name, f"{APP_NAME}-{deployment}")
+    for pod_name in deployment_pods:
+        actual_pod_security_context = lightkube_client.get(
+            Pod, pod_name, namespace=ops_test.model_name
+        ).spec.securityContext
+        for key, value in EXPECTED_COMMON_POD_SECURITY_CONTEXT.items():
+            assert getattr(actual_pod_security_context, key) == value
+
+
+@pytest.mark.parametrize("deployment", ["charm", "manager", "lws", "jobset"])
 async def test_container_security_context(
     ops_test: OpsTest,
     lightkube_client: Client,
+    deployment: str,
 ):
     """Test container security context is correctly set.
 
     Verify that container spec defines the security context with correct
-    user ID and group ID.
+    configuration.
     """
     failed_checks = []
-    pod_container_map = build_pod_container_map(ops_test.model_name)
+    if deployment == "charm":
+        pod_container_map = build_charm_pod_container_map(ops_test.model_name)
+    else:
+        pod_container_map = build_pod_container_map(ops_test.model_name, deployment)
     for pod, pod_containers in pod_container_map.items():
         for container in pod_containers.keys():
             try:
-                logger.critical(
-                    "Checking security context for container %s (pod: %s)", container, pod
-                )
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
                 assert_security_context(
                     lightkube_client,
                     pod,
