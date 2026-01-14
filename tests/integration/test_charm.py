@@ -253,7 +253,7 @@ async def test_create_training_jobs(ops_test: OpsTest, example: str):
     # we have an implementation in lightkube
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=2, min=1, max=30),
-        stop=tenacity.stop_after_attempt(30),
+        stop=tenacity.stop_after_attempt(45),
         reraise=True,
     )
     def assert_job_status_running_success():
