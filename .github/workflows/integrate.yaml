@@ -21,6 +21,7 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v4
+
     - name: Install dependencies
       run: pipx install tox
 
@@ -83,6 +84,7 @@ jobs:
           # integration tests due to timeouts unrelated to the charm itself
           RUNTIME_FILES=(
             "src/training_runtimes/deepspeed_distributed.yaml"
+            "src/training_runtimes/mlx_distributed.yaml"
           )
           for RUNTIME_FILE in "${RUNTIME_FILES[@]}"; do
             IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${RUNTIME_FILE}")
@@ -103,8 +105,19 @@ jobs:
           sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list -q
         if: ${{ matrix.tox-environments == 'integration' }}
 
+      - name: Fetch charm
+        uses: actions/download-artifact@v5
+        with:
+          name: built-charm
+          path: built/
+
+      - name: Get charm path
+        id: charm-path
+        run: echo "charm_path=$(find built/ -name '*.charm' -type f -print)" >> $GITHUB_OUTPUT
+
       - name: Run integration tests
-        run: tox -e ${{ matrix.tox-environments }} -- --model testing
+        run: |
+          tox -e ${{ matrix.tox-environments }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
 
       - name: Capture local images
         run: |
