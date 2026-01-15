@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   labels:
     control-plane: {{ namespace }}-{{ app_name }}
+    # label added to distinguish charm pod from workload pod
+    app.kubernetes.io/name: {{ app_name }}-manager
   name: {{ app_name }}
   namespace: {{ namespace }}
 spec:
@@ -10,12 +12,16 @@ spec:
   selector:
     matchLabels:
       control-plane: {{ namespace }}-{{ app_name }}
+      # label added to distinguish charm pod from workload pod
+      app.kubernetes.io/name: {{ app_name }}-manager
   template:
     metadata:
       annotations:
         sidecar.istio.io/inject: "false"
       labels:
         control-plane: {{ namespace }}-{{ app_name }}
+        # label added to distinguish charm pod from workload pod
+        app.kubernetes.io/name: {{ app_name }}-manager
     spec:
       containers:
       - command:
@@ -57,6 +63,9 @@ spec:
           periodSeconds: 15
           timeoutSeconds: 3
         securityContext:
+          # this might require update if not running training-operator rock image
+          runAsUser: 584792
+          runAsGroup: 584792
           allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /tmp/k8s-webhook-server/serving-certs

@@ -3,6 +3,7 @@ __pycache__
 .idea
 .tox
 .coverage
+coverage.xml
 *.charm
 venv/
 .terraform*

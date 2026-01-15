@@ -14,20 +14,44 @@ import yaml
 from charmed_kubeflow_chisme.testing import (
     assert_alert_rules,
     assert_metrics_endpoint,
+    assert_security_context,
     deploy_and_assert_grafana_agent,
+    generate_container_securitycontext_map,
     get_alert_rules,
+    get_pod_names,
 )
+from jinja2 import Template
+from lightkube import Client
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-APP_NAME = "training-operator"
+METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+DEPLOYMENT_FILE = Path("./src/templates/deployment.yaml.j2").read_text()
+APP_NAME = METADATA["name"]
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "1.8/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
+WEBHOOK_TARGET_PORT = "9443"
+DEPLOYMENT_YAML = yaml.safe_load(
+    Template(DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+
+
+@pytest.fixture(scope="session")
+def lightkube_client() -> Client:
+    """Returns lightkube Kubernetes client"""
+    client = Client(field_manager=f"{APP_NAME}")
+    return client
 
 
 @pytest.mark.abort_on_fail
@@ -190,7 +214,7 @@ async def test_alert_rules(ops_test: OpsTest):
     await assert_alert_rules(app, alert_rules)
 
 
-async def test_metrics_enpoint(ops_test: OpsTest):
+async def test_metrics_endpoint(ops_test: OpsTest):
     """Test metrics_endpoints are defined in relation data bag and their accessibility.
 
     This function gets all the metrics_endpoints from the relation data bag, checks if
@@ -202,6 +226,57 @@ async def test_metrics_enpoint(ops_test: OpsTest):
     # the MetricsEndpointProvider. It is set to the training-operator Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
+
+
+def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to this charm.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/templates/deployment.yaml.j2`.
+    """
+    charm_pods: list = get_pod_names(model_name, APP_NAME)
+    deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-manager")
+    deployment_container_name = deployment_template["spec"]["template"]["spec"]["containers"][0][
+        "name"
+    ]
+    deployment_container_security_context = deployment_template["spec"]["template"]["spec"][
+        "containers"
+    ][0]["securityContext"]
+    pod_container_map = {}
+
+    for charm_pod in charm_pods:
+        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
+    for pod in deployment_pods:
+        pod_container_map[pod] = {deployment_container_name: deployment_container_security_context}
+    return pod_container_map
+
+
+async def test_container_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+):
+    """Test container security context is correctly set.
+
+    Verify that container spec defines the security context with correct
+    user ID and group ID.
+    """
+    failed_checks = []
+    pod_container_map = build_pod_container_map(ops_test.model_name, DEPLOYMENT_YAML)
+    for pod, pod_containers in pod_container_map.items():
+        for container in pod_containers.keys():
+            try:
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
+                assert_security_context(
+                    lightkube_client,
+                    pod,
+                    container,
+                    pod_containers,
+                    ops_test.model_name,
+                )
+            except AssertionError as err:
+                failed_checks.append(f"{pod}/{container}: {err}")
+    assert failed_checks == []
 
 
 @pytest.mark.abort_on_fail
