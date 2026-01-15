@@ -99,10 +99,16 @@ jobs:
             # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
           done
+          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list
         if: ${{ matrix.tox-environments == 'integration' }}
 
       - name: Run integration tests
         run: tox -e ${{ matrix.tox-environments }} -- --model testing
+
+      - name: Capture local images
+        run: |
+          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list
+        if: failure()
 
       - name: Capture k8s resources on failure
         run: |
