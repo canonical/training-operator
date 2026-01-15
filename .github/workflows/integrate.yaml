@@ -98,8 +98,9 @@ jobs:
             # explanation of this command can be found in Canonical K8s image management doc
             # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
+            sudo /snap/k8s/current/bin/ctr --namespace k8s.io image label "${FINAL_IMAGE}" io.cri-containerd.pinned=pinned
           done
-          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list
+          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list -q
         if: ${{ matrix.tox-environments == 'integration' }}
 
       - name: Run integration tests
@@ -107,7 +108,7 @@ jobs:
 
       - name: Capture local images
         run: |
-          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list
+          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list -q
         if: failure()
 
       - name: Capture k8s resources on failure
