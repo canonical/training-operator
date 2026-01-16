@@ -113,7 +113,6 @@ jobs:
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image label "${FINAL_IMAGE}" io.cri-containerd.pinned=pinned
           done
-          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list -q
         if: ${{ matrix.tox-environments == 'integration' }}
 
       - name: Fetch charm
@@ -129,11 +128,6 @@ jobs:
       - name: Run integration tests
         run: |
           tox -e ${{ matrix.tox-environments }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
-
-      - name: Capture local images
-        run: |
-          sudo /snap/k8s/current/bin/ctr --namespace k8s.io image list -q
-        if: failure()
 
       - name: Capture k8s resources on failure
         run: |
