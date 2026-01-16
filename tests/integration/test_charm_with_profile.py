@@ -52,11 +52,16 @@ def _build_crd_kinds():
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     """Build the charm and deploy."""
-    charm_under_test = await ops_test.build_charm(".")
 
-    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
