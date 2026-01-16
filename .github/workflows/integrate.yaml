@@ -55,7 +55,7 @@ jobs:
 
   integration-test:
     name: Integration
-    runs-on: ubuntu-24.04
+    runs-on: ["self-hosted-linux-amd64-noble-xlarge"]
     strategy:
       matrix:
         tox-environments:
@@ -72,6 +72,16 @@ jobs:
 
       - name: Setup environment
         run: |
+          # Avoiding dockerhub rate limits (see https://canonical-self-hosted-github-runner-docs.readthedocs-hosted.com/en/latest/usage/faq/how-to-avoid-dockerhub-rate-limits/ for more informations)
+          if [ -n "$DOCKERHUB_MIRROR" ]; then
+            MIRROR_CONFIG=/etc/containerd/hosts.d/docker.io
+            sudo mkdir -p ${MIRROR_CONFIG}
+            sudo chown $USER ${MIRROR_CONFIG}
+            cat << EOF > ${MIRROR_CONFIG}/hosts.toml
+            [host."$DOCKERHUB_MIRROR"]
+            capabilities = ["pull", "resolve"]
+            EOF
+          fi
           sudo apt-get remove -y docker-ce docker-ce-cli containerd.io
           sudo rm -rf /run/containerd
           sudo snap install concierge --classic
