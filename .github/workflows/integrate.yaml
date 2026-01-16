@@ -93,8 +93,8 @@ jobs:
           # this step is required to prefetch heavy images to avoid false-positive failures in
           # integration tests due to timeouts unrelated to the charm itself
           RUNTIME_FILES=(
-            # "src/training_runtimes/deepspeed_distributed.yaml"
-            # "src/training_runtimes/mlx_distributed.yaml"
+            "src/training_runtimes/deepspeed_distributed.yaml"
+            "src/training_runtimes/mlx_distributed.yaml"
           )
           for RUNTIME_FILE in "${RUNTIME_FILES[@]}"; do
             IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${RUNTIME_FILE}")
