@@ -93,20 +93,28 @@ jobs:
         run: |
           # this step is required to prefetch heavy images to avoid false-positive failures in
           # integration tests due to timeouts unrelated to the charm itself
-          RUNTIME_FILES=(
-            "src/training_runtimes/deepspeed_distributed.yaml"
-            "src/training_runtimes/mlx_distributed.yaml"
-          )
-          for RUNTIME_FILE in "${RUNTIME_FILES[@]}"; do
-            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${RUNTIME_FILE}")
+          RUNTIME_FOLDER=./src/training_runtimes/
+          for TPL in "${RUNTIME_FOLDER}"*.yaml; do
+            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${TPL}")
             # set internal field separator to ":" and tokenize the image string
             IFS=':' read -ra SPLIT_IMAGE <<< "${IMAGE}"
             HASH="latest"
             # handle case in which image already has an hash
-            if [ ${#SPLIT_IMAGE[@]} = 2 ]; then
+            if [ ${#SPLIT_IMAGE[@]} -ge 2 ]; then
               HASH=${SPLIT_IMAGE[-1]}
+            else
+              SPLIT_IMAGE+=(HASH)
             fi
-            FINAL_IMAGE="${SPLIT_IMAGE[0]}:${HASH}"
+            # handle implicit registry
+            IFS='/' read -ra SPLIT_IMAGE <<< "${SPLIT_IMAGE}"
+            REGISTRY="docker.io"
+            if [ "${SPLIT_IMAGE[0]}" == "ghcr.io" ]; then
+              REGISTRY=${SPLIT_IMAGE[0]}
+            else
+              SPLIT_IMAGE=("${REGISTRY}" "${SPLIT_IMAGE[@]}" )
+            fi
+            # set internal field separator to "/" and join the image string
+            IFS="/" FINAL_IMAGE="${SPLIT_IMAGE[*]:0:${#SPLIT_IMAGE[@]}-1}:${HASH}"
             echo "Pulling ${FINAL_IMAGE}"
             # explanation of this command can be found in Canonical K8s image management doc
             # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
