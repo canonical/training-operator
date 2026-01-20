@@ -520,14 +520,14 @@ pycparser = {version = "*", markers = "implementation_name != \"PyPy\""}
 
 [[package]]
 name = "charmed-kubeflow-chisme"
-version = "0.4.22"
+version = "0.4.23"
 description = "A collection of helpers for Charms maintained by the Charmed Kubeflow team"
 optional = false
 python-versions = ">=3.6"
 groups = ["charm", "integration", "unit"]
 files = [
-    {file = "charmed_kubeflow_chisme-0.4.22-py3-none-any.whl", hash = "sha256:41dfb84ffbf85841b05aeaf1ec355abb44ab4318a7a455cb929e7a174e33e16c"},
-    {file = "charmed_kubeflow_chisme-0.4.22.tar.gz", hash = "sha256:a02e0825168bfa95ce19e69d1fa2b77b52baf1743e74c7bf68acb741400dea4f"},
+    {file = "charmed_kubeflow_chisme-0.4.23-py3-none-any.whl", hash = "sha256:04bd63fcf9f49809f075e2905026b62d0c3dcf7740f62b7cd42b767c8e6f89c0"},
+    {file = "charmed_kubeflow_chisme-0.4.23.tar.gz", hash = "sha256:4629ee1922d72b026892ffb0efddfc0bbcc1fb3203e2f1f15d72e8ab1efde742"},
 ]
 
 [package.dependencies]
@@ -550,14 +550,14 @@ test = ["black", "pytest"]
 
 [[package]]
 name = "charmed-service-mesh-helpers"
-version = "0.3.0"
+version = "0.4.0"
 description = "Helpers for the Service Mesh charms."
 optional = false
 python-versions = "~=3.8"
 groups = ["charm", "integration", "unit"]
 files = [
-    {file = "charmed_service_mesh_helpers-0.3.0-py3-none-any.whl", hash = "sha256:39caa6e170c399794024c79c3490236ed1890a5b1984842f99eee1260b975d89"},
-    {file = "charmed_service_mesh_helpers-0.3.0.tar.gz", hash = "sha256:888c24a7648ac723edc4894e81efc90317a22f0f66da2e0ea301c583232e429d"},
+    {file = "charmed_service_mesh_helpers-0.4.0-py3-none-any.whl", hash = "sha256:77907e04bea963ea26048e282c6d4253ed06f3e01beded015ece0020ebc613f5"},
+    {file = "charmed_service_mesh_helpers-0.4.0.tar.gz", hash = "sha256:71ea5ed99b8e27debb4c001be7e3d5acb20001f48a4e2f705f1432269d93dc61"},
 ]
 
 [package.dependencies]
@@ -2297,14 +2297,14 @@ tests = ["pytest"]
 
 [[package]]
 name = "pyasn1"
-version = "0.6.1"
+version = "0.6.2"
 description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
 optional = false
 python-versions = ">=3.8"
 groups = ["charm", "integration", "unit"]
 files = [
-    {file = "pyasn1-0.6.1-py3-none-any.whl", hash = "sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629"},
-    {file = "pyasn1-0.6.1.tar.gz", hash = "sha256:6f580d2bdd84365380830acf45550f2511469f673cb4a5ae3857a3170128b034"},
+    {file = "pyasn1-0.6.2-py3-none-any.whl", hash = "sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf"},
+    {file = "pyasn1-0.6.2.tar.gz", hash = "sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b"},
 ]
 
 [[package]]
@@ -3361,4 +3361,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "b2779c8657f4c3c688fe07f133001d83ea0feead56220a42e3ecfd6ef9d1823e"
+content-hash = "23868a93f950736a81acb62252f32c5550e490ea26e5633d54b9ee374579d06c"

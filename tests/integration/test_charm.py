@@ -20,7 +20,6 @@ from charmed_kubeflow_chisme.testing import (
     get_alert_rules,
     get_pod_names,
 )
-from jinja2 import Template
 from lightkube import Client
 from lightkube.models.core_v1 import Capabilities
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
@@ -31,9 +30,6 @@ from pytest_operator.plugin import OpsTest
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
-JOBSET_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
-LWS_DEPLOYMENT_FILE = Path("./src/templates/lws-deployment_manifests.yaml.j2").read_text()
-TRAINER_DEPLOYMENT_FILE = Path("./src/templates/trainer-deployment_manifests.yaml.j2").read_text()
 APP_NAME = METADATA["name"]
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "2.0/stable"
@@ -42,33 +38,6 @@ METRICS_PORT = 8080
 TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml"
 TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml"
 WEBHOOK_TARGET_PORT = "9443"
-JOBSET_DEPLOYMENT_YAML = yaml.safe_load(
-    Template(JOBSET_DEPLOYMENT_FILE).render(
-        **{
-            "app_name": APP_NAME,
-            "metrics_port": METRICS_PORT,
-            "webhook_target_port": WEBHOOK_TARGET_PORT,
-        }
-    )
-)
-LWS_DEPLOYMENT_YAML = yaml.safe_load(
-    Template(LWS_DEPLOYMENT_FILE).render(
-        **{
-            "app_name": APP_NAME,
-            "metrics_port": METRICS_PORT,
-            "webhook_target_port": WEBHOOK_TARGET_PORT,
-        }
-    )
-)
-MANAGER_DEPLOYMENT_YAML = yaml.safe_load(
-    Template(TRAINER_DEPLOYMENT_FILE).render(
-        **{
-            "app_name": APP_NAME,
-            "metrics_port": METRICS_PORT,
-            "webhook_target_port": WEBHOOK_TARGET_PORT,
-        }
-    )
-)
 EXPECTED_COMMON_POD_SECURITY_CONTEXT = {"runAsNonRoot": True}
 EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT = {
     "allowPrivilegeEscalation": False,
