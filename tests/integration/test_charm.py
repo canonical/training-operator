@@ -319,16 +319,15 @@ def build_charm_pod_container_map(model_name: str) -> dict[str, dict]:
     return pod_container_map
 
 
-def build_pod_container_map(model_name: str, deployment: str) -> dict[str, dict]:
+def build_pod_container_map(model_name: str, deployment_yaml: dict) -> dict[str, dict]:
     """Build full map of pods:containers belonging to the specified deployment.
 
     This function builds a custom mapping of security context for pods and containers,
     necessary because some pods are not directly spawned by juju but are defined in
     `src/templates/*deployment.yaml.j2`.
     """
-    deployment_name = f"{APP_NAME}-{deployment}"
+    deployment_name = deployment_yaml["metadata"]["labels"]["app.kubernetes.io/name"]
     deployment_pods: list = get_pod_names(model_name, deployment_name)
-    deployment_yaml = globals().get(f"{deployment.upper()}_DEPLOYMENT_YAML")
     container_name = deployment_yaml["spec"]["template"]["spec"]["containers"][0]["name"]
     pod_container_map = {}
     for pod in deployment_pods:
@@ -355,11 +354,15 @@ async def test_pod_security_context(
             assert getattr(actual_pod_security_context, key) == value
 
 
-@pytest.mark.parametrize("deployment", ["charm", "manager", "lws", "jobset"])
+@pytest.mark.parametrize(
+    "deployment_yaml",
+    [None, MANAGER_DEPLOYMENT_YAML, LWS_DEPLOYMENT_YAML, JOBSET_DEPLOYMENT_YAML],
+    ids=["charm", "manager", "leaderworkerset", "jobset"],
+)
 async def test_container_security_context(
     ops_test: OpsTest,
     lightkube_client: Client,
-    deployment: str,
+    deployment_yaml: dict,
 ):
     """Test container security context is correctly set.
 
@@ -367,10 +370,10 @@ async def test_container_security_context(
     configuration.
     """
     failed_checks = []
-    if deployment == "charm":
+    if deployment_yaml is None:
         pod_container_map = build_charm_pod_container_map(ops_test.model_name)
     else:
-        pod_container_map = build_pod_container_map(ops_test.model_name, deployment)
+        pod_container_map = build_pod_container_map(ops_test.model_name, deployment_yaml)
     for pod, pod_containers in pod_container_map.items():
         for container in pod_containers.keys():
             try:
