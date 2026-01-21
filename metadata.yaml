@@ -16,3 +16,4 @@ provides:
 requires:
   dashboard-links:
     interface: kubeflow_dashboard_links
+charm-user: non-root
