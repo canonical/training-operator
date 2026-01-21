@@ -14,33 +14,91 @@ import yaml
 from charmed_kubeflow_chisme.testing import (
     assert_alert_rules,
     assert_metrics_endpoint,
+    assert_security_context,
     deploy_and_assert_grafana_agent,
+    generate_container_securitycontext_map,
     get_alert_rules,
+    get_pod_names,
 )
+from jinja2 import Template
+from lightkube import Client
+from lightkube.models.core_v1 import Capabilities
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.core_v1 import Pod
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-APP_NAME = "kubeflow-trainer"
+METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+JOBSET_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
+LWS_DEPLOYMENT_FILE = Path("./src/templates/lws-deployment_manifests.yaml.j2").read_text()
+TRAINER_DEPLOYMENT_FILE = Path("./src/templates/trainer-deployment_manifests.yaml.j2").read_text()
+APP_NAME = METADATA["name"]
 CHARM_LOCATION = None
 APP_PREVIOUS_CHANNEL = "2.0/stable"
 METRICS_PATH = "/metrics"
 METRICS_PORT = 8080
 TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml"
 TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml"
+WEBHOOK_TARGET_PORT = "9443"
+JOBSET_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(JOBSET_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+LWS_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(LWS_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+MANAGER_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(TRAINER_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+EXPECTED_COMMON_POD_SECURITY_CONTEXT = {"runAsNonRoot": True}
+EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": Capabilities(drop=["ALL"]),
+}
+
+
+class InvalidSecurityContextException(Exception):
+    pass
+
+
+@pytest.fixture(scope="session")
+def lightkube_client() -> Client:
+    """Returns lightkube Kubernetes client"""
+    client = Client()
+    return client
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     """Build the charm and deploy it with trust=True.
 
     Assert on the unit status.
     """
-    charm_under_test = await ops_test.build_charm(".")
-
-    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 15
     )
@@ -48,7 +106,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # store charm location in global to be used in other tests
     global CHARM_LOCATION
-    CHARM_LOCATION = charm_under_test
+    CHARM_LOCATION = entity_url
 
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
@@ -198,7 +256,7 @@ async def test_create_training_jobs(ops_test: OpsTest, example: str):
     # we have an implementation in lightkube
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=2, min=1, max=30),
-        stop=tenacity.stop_after_attempt(30),
+        stop=tenacity.stop_after_attempt(45),
         reraise=True,
     )
     def assert_job_status_running_success():
@@ -245,6 +303,91 @@ async def test_metrics_endpoint(ops_test: OpsTest):
     # the MetricsEndpointProvider. It is set to the kubeflow-trainer Service name because this
     # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
+
+
+def build_charm_pod_container_map(model_name: str) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the charm deployment.
+
+    This function builds a mapping of security context for pods and containers
+    spawned by juju. This function allows to reuse the same test code for all pods
+    of the charm.
+    """
+    charm_pods: list = get_pod_names(model_name, APP_NAME)
+    pod_container_map = {}
+    for charm_pod in charm_pods:
+        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
+    return pod_container_map
+
+
+def build_pod_container_map(model_name: str, deployment_yaml: dict) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the specified deployment.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/templates/*deployment.yaml.j2`.
+    """
+    deployment_name = deployment_yaml["metadata"]["labels"]["app.kubernetes.io/name"]
+    deployment_pods: list = get_pod_names(model_name, deployment_name)
+    container_name = deployment_yaml["spec"]["template"]["spec"]["containers"][0]["name"]
+    pod_container_map = {}
+    for pod in deployment_pods:
+        pod_container_map[pod] = {container_name: EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT}
+    return pod_container_map
+
+
+@pytest.mark.parametrize("deployment", ["lws", "jobset"])
+async def test_pod_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    deployment: str,
+):
+    """Test pod security context is correctly set.
+
+    Verify that pod spec defines the security context with correct configuration.
+    """
+    deployment_pods: list[str] = get_pod_names(ops_test.model_name, f"{APP_NAME}-{deployment}")
+    for pod_name in deployment_pods:
+        actual_pod_security_context = lightkube_client.get(
+            Pod, pod_name, namespace=ops_test.model_name
+        ).spec.securityContext
+        for key, value in EXPECTED_COMMON_POD_SECURITY_CONTEXT.items():
+            assert getattr(actual_pod_security_context, key) == value
+
+
+@pytest.mark.parametrize(
+    "deployment_yaml",
+    [None, MANAGER_DEPLOYMENT_YAML, LWS_DEPLOYMENT_YAML, JOBSET_DEPLOYMENT_YAML],
+    ids=["charm", "manager", "leaderworkerset", "jobset"],
+)
+async def test_container_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    deployment_yaml: dict,
+):
+    """Test container security context is correctly set.
+
+    Verify that container spec defines the security context with correct
+    configuration.
+    """
+    failed_checks = []
+    if deployment_yaml is None:
+        pod_container_map = build_charm_pod_container_map(ops_test.model_name)
+    else:
+        pod_container_map = build_pod_container_map(ops_test.model_name, deployment_yaml)
+    for pod, pod_containers in pod_container_map.items():
+        for container in pod_containers.keys():
+            try:
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
+                assert_security_context(
+                    lightkube_client,
+                    pod,
+                    container,
+                    pod_containers,
+                    ops_test.model_name,
+                )
+            except AssertionError:
+                failed_checks.append(f"{pod}/{container}")
+    assert failed_checks == []
 
 
 @pytest.mark.abort_on_fail

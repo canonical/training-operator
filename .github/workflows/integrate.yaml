@@ -21,6 +21,7 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v4
+
     - name: Install dependencies
       run: pipx install tox
 
@@ -54,24 +55,35 @@ jobs:
 
   integration-test:
     name: Integration
-    runs-on: ubuntu-24.04
+    runs-on: ["self-hosted-linux-amd64-noble-xlarge"]
     strategy:
       matrix:
         tox-environments:
           - integration
           - integration-with-profiles
     steps:
-      - name: Maximise GH runner space
-        uses: jlumbroso/free-disk-space@v1.3.1
-
       - name: Check out code
         uses: actions/checkout@v4
+
       - name: Install dependencies
-        run: pipx install tox
+        run: |
+          sudo apt-get install -yqq pipx
+          pipx ensurepath
+          pipx install tox
 
       - name: Setup environment
         run: |
-          sudo apt-get remove -y docker-ce docker-ce-cli containerd.io
+          # Avoiding dockerhub rate limits (see https://canonical-self-hosted-github-runner-docs.readthedocs-hosted.com/en/latest/usage/faq/how-to-avoid-dockerhub-rate-limits/ for more informations)
+          if [ -n "$DOCKERHUB_MIRROR" ]; then
+            MIRROR_CONFIG=/etc/containerd/hosts.d/docker.io
+            sudo mkdir -p ${MIRROR_CONFIG}
+            sudo chown $USER ${MIRROR_CONFIG}
+            cat << EOF > ${MIRROR_CONFIG}/hosts.toml
+          [host."$DOCKERHUB_MIRROR"]
+          capabilities = ["pull", "resolve"]
+          EOF
+          fi
+          sudo apt-get remove -y docker.io containerd
           sudo rm -rf /run/containerd
           sudo snap install concierge --classic
           sudo concierge prepare --trace
@@ -81,28 +93,47 @@ jobs:
         run: |
           # this step is required to prefetch heavy images to avoid false-positive failures in
           # integration tests due to timeouts unrelated to the charm itself
-          RUNTIME_FILES=(
-            "src/training_runtimes/deepspeed_distributed.yaml"
-          )
-          for RUNTIME_FILE in "${RUNTIME_FILES[@]}"; do
-            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${RUNTIME_FILE}")
+          RUNTIME_FOLDER=./src/training_runtimes/
+          for TPL in "${RUNTIME_FOLDER}"*.yaml; do
+            IMAGE=$(yq '.spec.template.spec.replicatedJobs.[0].template.spec.template.spec.containers[0].image' "${TPL}")
             # set internal field separator to ":" and tokenize the image string
             IFS=':' read -ra SPLIT_IMAGE <<< "${IMAGE}"
-            HASH="latest"
-            # handle case in which image already has an hash
-            if [ ${#SPLIT_IMAGE[@]} = 2 ]; then
-              HASH=${SPLIT_IMAGE[-1]}
+            TAG="latest"
+            # handle case in which image already has a tag
+            if [ ${#SPLIT_IMAGE[@]} == 2 ]; then
+              TAG=${SPLIT_IMAGE[-1]}
             fi
-            FINAL_IMAGE="${SPLIT_IMAGE[0]}:${HASH}"
+            # handle implicit registry
+            IFS='/' read -ra SPLIT_IMAGE <<< "${SPLIT_IMAGE[0]}"
+            REGISTRY="docker.io"
+            if [ "${SPLIT_IMAGE[0]}" == "ghcr.io" ]; then
+              REGISTRY=${SPLIT_IMAGE[0]}
+            else
+              SPLIT_IMAGE=("${REGISTRY}" "${SPLIT_IMAGE[@]}" )
+            fi
+            # set internal field separator to "/" and join the image string plus tag
+            IFS="/" FINAL_IMAGE="${SPLIT_IMAGE[*]:0:${#SPLIT_IMAGE[@]}}:${TAG}"
             echo "Pulling ${FINAL_IMAGE}"
             # explanation of this command can be found in Canonical K8s image management doc
             # https://documentation.ubuntu.com/canonical-kubernetes/latest/snap/howto/image-management/
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
+            sudo /snap/k8s/current/bin/ctr --namespace k8s.io image label "${FINAL_IMAGE}" io.cri-containerd.pinned=pinned
           done
         if: ${{ matrix.tox-environments == 'integration' }}
 
+      - name: Fetch charm
+        uses: actions/download-artifact@v5
+        with:
+          name: built-charm
+          path: built/
+
+      - name: Get charm path
+        id: charm-path
+        run: echo "charm_path=$(find built/ -name '*.charm' -type f -print)" >> $GITHUB_OUTPUT
+
       - name: Run integration tests
-        run: tox -e ${{ matrix.tox-environments }} -- --model testing
+        run: |
+          tox -e ${{ matrix.tox-environments }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
 
       - name: Capture k8s resources on failure
         run: |
