@@ -7,7 +7,7 @@ variable "app_name" {
 variable "channel" {
   description = "Charm channel"
   type        = string
-  default     = "latest/edge"
+  default     = "2.1/stable"
 }
 
 variable "config" {
