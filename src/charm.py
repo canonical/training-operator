@@ -15,11 +15,7 @@ from charmed_service_mesh_helpers.models import (
     WorkloadSelector,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.istio_beacon_k8s.v0.service_mesh import (
-    PolicyResourceManager,
-    ServiceMeshConsumer,
-    UnitPolicy,
-)
+from charms.istio_beacon_k8s.v0.service_mesh import PolicyResourceManager, ServiceMeshConsumer
 from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
     DashboardLink,
     KubeflowDashboardLinksRequirer,
@@ -128,11 +124,6 @@ class TrainingOperatorCharm(CharmBase):
 
         self._mesh = ServiceMeshConsumer(
             self,
-            policies=[
-                UnitPolicy(
-                    relation=METRICS_ENDPOINT_RELATION_NAME,
-                ),
-            ],
         )
 
         # Allow all policy needed to allow the K8s API to talk to the webhook
