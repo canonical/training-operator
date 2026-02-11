@@ -322,8 +322,8 @@ class TestCharm:
         harness.begin()
 
         # Add a service mesh relation
-        rel_id = harness.add_relation("service-mesh", "istio")
-        harness.add_relation_unit(rel_id, "istio/0")
+        rel_id = harness.add_relation("service-mesh", "istio-beacon-k8s")
+        harness.add_relation_unit(rel_id, "istio-beacon-k8s/0")
 
         # Mock the _mesh._relation to be truthy and mock mesh_type
         mock_relation = MagicMock()
@@ -420,8 +420,8 @@ class TestCharm:
         harness.begin()
 
         # Add a service mesh relation
-        rel_id = harness.add_relation("service-mesh", "istio")
-        harness.add_relation_unit(rel_id, "istio/0")
+        rel_id = harness.add_relation("service-mesh", "istio-beacon-k8s")
+        harness.add_relation_unit(rel_id, "istio-beacon-k8s/0")
 
         # Remove the relation to trigger relation_broken
         harness.remove_relation(rel_id)
