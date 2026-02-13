@@ -251,38 +251,182 @@ class TestCharm:
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.TrainingOperatorCharm.ensure_crd_is_deleted")
     @patch("charm.delete_many")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
     def test_on_remove_success(
         self,
-        delete_many: MagicMock,
         _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
         __: MagicMock,
+        delete_many: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
         trainjob_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
         k8s_resource_handler: MagicMock,
         harness: Harness,
     ):
+        harness.set_leader(True)
         harness.begin()
         harness.charm.on.remove.emit()
         trainjob_resource_handler.assert_has_calls([call.render_manifests()])
         k8s_resource_handler.assert_has_calls([call.render_manifests()])
         crd_resource_handler.assert_has_calls([call.render_manifests()])
         delete_many.assert_called()
+        policy_resource_manager_cls.return_value.delete.assert_called_once()
 
     @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
     @patch("charm.TrainingOperatorCharm.crd_resource_handler")
     @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
     @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
     @patch("charm.delete_many")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
     def test_on_remove_failure(
         self,
-        delete_many: MagicMock,
         _: MagicMock,
         __: MagicMock,
         ___: MagicMock,
+        delete_many: MagicMock,
         ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
+        _______: MagicMock,
         harness: Harness,
     ):
         delete_many.side_effect = _FakeApiError()
         harness.begin()
         with pytest.raises(ApiError):
             harness.charm.on.remove.emit()
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
+    def test_reconcile_policy_resource_manager_with_mesh(
+        self,
+        _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
+        __: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
+        harness: Harness,
+    ):
+        harness.set_leader(True)
+        harness.begin()
+
+        # Add a service mesh relation
+        rel_id = harness.add_relation("service-mesh", "istio-beacon-k8s")
+        harness.add_relation_unit(rel_id, "istio-beacon-k8s/0")
+
+        # Mock the _mesh._relation to be truthy and mock mesh_type
+        mock_relation = MagicMock()
+        with patch.object(harness.charm._mesh, "_relation", mock_relation), patch.object(
+            harness.charm._mesh, "mesh_type", "ambient"
+        ):
+            # Call reconcile
+            harness.charm._reconcile_policy_resource_manager()
+
+        # Verify reconcile was called with the correct policies
+        policy_resource_manager_cls.return_value.reconcile.assert_called_once_with(
+            policies=[],
+            mesh_type="ambient",
+            raw_policies=harness.charm._allow_all_policies,
+        )
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
+    def test_reconcile_policy_resource_manager_without_mesh(
+        self,
+        service_mesh_consumer_cls: MagicMock,
+        policy_resource_manager_cls: MagicMock,
+        _: MagicMock,
+        __: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
+        _____: MagicMock,
+        harness: Harness,
+    ):
+        # Configure mock to simulate no mesh relation
+        service_mesh_consumer_cls.return_value._relation = None
+
+        harness.set_leader(True)
+        harness.begin()
+
+        # Call reconcile without mesh relation
+        harness.charm._reconcile_policy_resource_manager()
+
+        # Verify reconcile was not called
+        policy_resource_manager_cls.return_value.reconcile.assert_not_called()
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.TrainingOperatorCharm.ensure_crd_is_deleted")
+    @patch("charm.delete_many")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
+    def test_on_remove_calls_remove_authorization_policies(
+        self,
+        _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
+        __: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
+        _______: MagicMock,
+        ________: MagicMock,
+        harness: Harness,
+    ):
+        harness.set_leader(True)
+        harness.begin()
+        harness.charm.on.remove.emit()
+
+        # Verify _remove_authorization_policies was called (via delete())
+        policy_resource_manager_cls.return_value.delete.assert_called_once()
+
+    @patch("charm.TrainingOperatorCharm.k8s_resource_handler")
+    @patch("charm.TrainingOperatorCharm.crd_resource_handler")
+    @patch("charm.TrainingOperatorCharm.trainjob_resource_handler")
+    @patch("charm.TrainingOperatorCharm.training_runtimes_resource_handler")
+    @patch("charm.TrainingOperatorCharm.policy_resource_manager_client")
+    @patch("charm.PolicyResourceManager")
+    @patch("charm.ServiceMeshConsumer")
+    def test_service_mesh_relation_broken(
+        self,
+        _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
+        __: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
+        harness: Harness,
+    ):
+        harness.set_leader(True)
+        harness.begin()
+
+        # Add a service mesh relation
+        rel_id = harness.add_relation("service-mesh", "istio-beacon-k8s")
+        harness.add_relation_unit(rel_id, "istio-beacon-k8s/0")
+
+        # Remove the relation to trigger relation_broken
+        harness.remove_relation(rel_id)
+
+        # Verify delete was called
+        policy_resource_manager_cls.return_value.delete.assert_called_once()
