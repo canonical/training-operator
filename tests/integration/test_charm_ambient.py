@@ -1,0 +1,529 @@
+# Copyright 2021 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+import glob
+import logging
+from pathlib import Path
+
+import lightkube
+import lightkube.codecs
+import lightkube.generic_resource
+import pytest
+import tenacity
+import yaml
+from charmed_kubeflow_chisme.testing import (
+    assert_alert_rules,
+    assert_metrics_endpoint,
+    assert_security_context,
+    deploy_and_assert_grafana_agent,
+    deploy_and_integrate_service_mesh_charms,
+    generate_container_securitycontext_map,
+    get_alert_rules,
+    get_pod_names,
+)
+from jinja2 import Template
+from lightkube import Client
+from lightkube.models.core_v1 import Capabilities
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.core_v1 import Pod
+from lightkube.resources.rbac_authorization_v1 import ClusterRole
+from pytest_operator.plugin import OpsTest
+
+logger = logging.getLogger(__name__)
+
+METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+JOBSET_DEPLOYMENT_FILE = Path("./src/templates/jobset-deployment_manifests.yaml.j2").read_text()
+LWS_DEPLOYMENT_FILE = Path("./src/templates/lws-deployment_manifests.yaml.j2").read_text()
+TRAINER_DEPLOYMENT_FILE = Path("./src/templates/trainer-deployment_manifests.yaml.j2").read_text()
+APP_NAME = METADATA["name"]
+CHARM_LOCATION = None
+APP_PREVIOUS_CHANNEL = "2.0/stable"
+METRICS_PATH = "/metrics"
+METRICS_PORT = 8080
+TRAINER_CRD_TRAINJOB_RESOURCE_FILE = "src/templates/trainer-crds_trainjob_manifests.yaml"
+TRAINER_CRD_RUNTIMES_RESOURCE_FILE = "src/templates/trainer-crds_runtimes_manifests.yaml"
+WEBHOOK_TARGET_PORT = "9443"
+JOBSET_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(JOBSET_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+LWS_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(LWS_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+MANAGER_DEPLOYMENT_YAML = yaml.safe_load(
+    Template(TRAINER_DEPLOYMENT_FILE).render(
+        **{
+            "app_name": APP_NAME,
+            "metrics_port": METRICS_PORT,
+            "webhook_target_port": WEBHOOK_TARGET_PORT,
+        }
+    )
+)
+EXPECTED_COMMON_POD_SECURITY_CONTEXT = {"runAsNonRoot": True}
+EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT = {
+    "allowPrivilegeEscalation": False,
+    "capabilities": Capabilities(drop=["ALL"]),
+}
+
+
+class InvalidSecurityContextException(Exception):
+    pass
+
+
+@pytest.fixture(scope="session")
+def lightkube_client() -> Client:
+    """Returns lightkube Kubernetes client"""
+    client = Client()
+    return client
+
+
+@pytest.mark.skip_if_deployed
+@pytest.mark.abort_on_fail
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
+    """Build the charm and deploy it with trust=True.
+
+    Assert on the unit status.
+    """
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 15
+    )
+    assert ops_test.model.applications[APP_NAME].units[0].workload_status == "active"
+
+    # store charm location in global to be used in other tests
+    global CHARM_LOCATION
+    CHARM_LOCATION = entity_url
+
+    # Deploy grafana-agent for COS integration tests
+    await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
+
+    await deploy_and_integrate_service_mesh_charms(
+        APP_NAME, ops_test.model, relate_to_ingress_route_endpoint=False
+    )
+
+    # Wait for the kubeflow-trainer workload Pod to run and the operator to start
+    await ensure_kubeflow_trainer_is_running(ops_test)
+    await ensure_workload_is_running(ops_test, "jobset")
+    await ensure_workload_is_running(ops_test, "lws")
+
+
+@tenacity.retry(
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
+    stop=tenacity.stop_after_delay(30),
+    reraise=True,
+)
+async def ensure_kubeflow_trainer_is_running(ops_test: OpsTest) -> None:
+    """Waits until the kubeflow-trainer workload Pod's status is Running."""
+    # The kubeflow-trainer workload Pod gets a random name, the easiest way
+    # to wait for it to be ready is using kubectl directly
+    await ops_test.run(
+        "kubectl",
+        "wait",
+        "--for=condition=ready",
+        "pod",
+        f"-lapp.kubernetes.io/name={APP_NAME}",
+        f"-n{ops_test.model_name}",
+        "--timeout=10m",
+        check=True,
+    )
+
+    _, out, err = await ops_test.run(
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{ops_test.model_name}",
+        "--field-selector",
+        "status.phase!=Running",
+        check=True,
+    )
+    assert APP_NAME not in out
+
+
+@tenacity.retry(
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=30),
+    stop=tenacity.stop_after_delay(30),
+    reraise=True,
+)
+async def ensure_workload_is_running(ops_test: OpsTest, workload: str) -> None:
+    """Waits until the LeaderWorkerSet workload Pod's status is Running."""
+    # The LeaderWorkerSet workload Pod gets a random name, the easiest way
+    # to wait for it to be ready is using kubectl directly
+    await ops_test.run(
+        "kubectl",
+        "wait",
+        "--for=condition=ready",
+        "pod",
+        f"-lapp.kubernetes.io/name={APP_NAME}",
+        f"-n{ops_test.model_name}",
+        "--timeout=10m",
+        check=True,
+    )
+
+    _, out, err = await ops_test.run(
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{ops_test.model_name}",
+        "--field-selector",
+        "status.phase!=Running",
+        check=True,
+    )
+    assert f"{APP_NAME}-{workload}" not in out
+
+
+def lightkube_create_global_resources() -> dict:
+    """Returns a dict with GenericNamespacedResource as value for each CRD key."""
+    crds_kinds = [
+        crd["spec"]["names"]
+        for crd in yaml.safe_load_all(
+            Path(TRAINER_CRD_RUNTIMES_RESOURCE_FILE).read_text()
+            + Path(TRAINER_CRD_TRAINJOB_RESOURCE_FILE).read_text()
+        )
+    ]
+    jobs_classes = {}
+    for kind in crds_kinds:
+        job_class = lightkube.generic_resource.create_namespaced_resource(
+            group="trainer.kubeflow.org",
+            version="v1alpha1",
+            kind=kind["kind"],
+            plural=kind["plural"],
+        )
+        jobs_classes[kind["kind"]] = job_class
+    return jobs_classes
+
+
+JOBS_CLASSES = lightkube_create_global_resources()
+
+
+@pytest.mark.parametrize("example", glob.glob("examples/*.yaml"))
+async def test_create_training_jobs(ops_test: OpsTest, example: str):
+    """Validates that a training job can be created and is running.
+
+    Asserts on the *Job status.
+    """
+    namespace = ops_test.model_name
+    lightkube_client = lightkube.Client()
+
+    # Set up for creating an object of kind *Job
+    job_yaml = yaml.safe_load(Path(example).read_text())
+    job_object = lightkube.codecs.load_all_yaml(yaml.dump(job_yaml))[0]
+    job_class = JOBS_CLASSES[job_object.kind]
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(30),
+        reraise=True,
+    )
+    def create_training_job():
+        """Create the training job.
+
+        Retry if there is an error when creating the Job.
+        The kubeflow-trainer may not be ready (even though the Pod shows a Running status,
+        this retry allows the create command to fail a couple times to allow the operator to
+        start all validatingwebhooks for each training job type.
+        """
+        # Create *Job and check if it exists where expected
+        lightkube_client.create(job_object, namespace=namespace)
+
+    # Allow the resource to be created
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(30),
+        reraise=True,
+    )
+    def assert_get_job():
+        """Asserts on the job.
+
+        Retries multiple times using tenacity to allow time for the training job
+        to be created.
+        """
+        job = lightkube_client.get(job_class, name=job_object.metadata.name, namespace=namespace)
+
+        assert job is not None, f"{job_object.metadata.name} does not exist"
+
+    # Wait for the *Job to have a status
+    # TODO: change this workaround after
+    # we have an implementation in lightkube
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=2, min=1, max=30),
+        stop=tenacity.stop_after_attempt(45),
+        reraise=True,
+    )
+    def assert_job_status_running_success():
+        """Asserts on the job status.
+
+        Retries multiple times using tenacity to allow time for the training job
+        to change its status from None -> Created -> Running/Succeeded.
+        """
+        job_status = lightkube_client.get(
+            job_class.Status, name=job_object.metadata.name, namespace=namespace
+        ).status["conditions"][-1]["type"]
+
+        # Check whether the last status of *Job is Running/Success
+        assert job_status in [
+            "Running",
+            "Complete",
+        ], f"{job_object.metadata.name} was not running or did not succeed (status == {job_status})"
+
+    create_training_job()
+    assert_get_job()
+    assert_job_status_running_success()
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
+
+
+async def test_alert_rules(ops_test: OpsTest):
+    """Test check charm alert rules and rules defined in relation data bag."""
+    app = ops_test.model.applications[APP_NAME]
+    alert_rules = get_alert_rules()
+    logger.info("found alert_rules: %s", alert_rules)
+    await assert_alert_rules(app, alert_rules)
+
+
+async def test_metrics_endpoint(ops_test: OpsTest):
+    """Test metrics_endpoints are defined in relation data bag and their accessibility.
+
+    This function gets all the metrics_endpoints from the relation data bag, checks if
+    they are available from the grafana-agent-k8s charm and finally compares them with the
+    ones provided to the function.
+    """
+    app = ops_test.model.applications[APP_NAME]
+    # metrics_target should be the same as the one defined in the charm code when instantiating
+    # the MetricsEndpointProvider. It is set to the kubeflow-trainer Service name because this
+    # charm is not a sidecar, once this is re-written in sidecar pattern, this value can be *
+    await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
+
+
+def build_charm_pod_container_map(model_name: str) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the charm deployment.
+
+    This function builds a mapping of security context for pods and containers
+    spawned by juju. This function allows to reuse the same test code for all pods
+    of the charm.
+    """
+    charm_pods: list = get_pod_names(model_name, APP_NAME)
+    pod_container_map = {}
+    for charm_pod in charm_pods:
+        pod_container_map[charm_pod] = generate_container_securitycontext_map(METADATA)
+    return pod_container_map
+
+
+def build_pod_container_map(model_name: str, deployment_yaml: dict) -> dict[str, dict]:
+    """Build full map of pods:containers belonging to the specified deployment.
+
+    This function builds a custom mapping of security context for pods and containers,
+    necessary because some pods are not directly spawned by juju but are defined in
+    `src/templates/*deployment.yaml.j2`.
+    """
+    deployment_name = deployment_yaml["metadata"]["labels"]["app.kubernetes.io/name"]
+    deployment_pods: list = get_pod_names(model_name, deployment_name)
+    container_name = deployment_yaml["spec"]["template"]["spec"]["containers"][0]["name"]
+    pod_container_map = {}
+    for pod in deployment_pods:
+        pod_container_map[pod] = {container_name: EXPECTED_COMMON_CONTAINER_SECURITY_CONTEXT}
+    return pod_container_map
+
+
+@pytest.mark.parametrize("deployment", ["lws", "jobset"])
+async def test_pod_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    deployment: str,
+):
+    """Test pod security context is correctly set.
+
+    Verify that pod spec defines the security context with correct configuration.
+    """
+    deployment_pods: list[str] = get_pod_names(ops_test.model_name, f"{APP_NAME}-{deployment}")
+    for pod_name in deployment_pods:
+        actual_pod_security_context = lightkube_client.get(
+            Pod, pod_name, namespace=ops_test.model_name
+        ).spec.securityContext
+        for key, value in EXPECTED_COMMON_POD_SECURITY_CONTEXT.items():
+            assert getattr(actual_pod_security_context, key) == value
+
+
+@pytest.mark.parametrize(
+    "deployment_yaml",
+    [None, MANAGER_DEPLOYMENT_YAML, LWS_DEPLOYMENT_YAML, JOBSET_DEPLOYMENT_YAML],
+    ids=["charm", "manager", "leaderworkerset", "jobset"],
+)
+async def test_container_security_context(
+    ops_test: OpsTest,
+    lightkube_client: Client,
+    deployment_yaml: dict,
+):
+    """Test container security context is correctly set.
+
+    Verify that container spec defines the security context with correct
+    configuration.
+    """
+    failed_checks = []
+    if deployment_yaml is None:
+        pod_container_map = build_charm_pod_container_map(ops_test.model_name)
+    else:
+        pod_container_map = build_pod_container_map(ops_test.model_name, deployment_yaml)
+    for pod, pod_containers in pod_container_map.items():
+        for container in pod_containers.keys():
+            try:
+                logger.info("Checking security context for container %s (pod: %s)", container, pod)
+                assert_security_context(
+                    lightkube_client,
+                    pod,
+                    container,
+                    pod_containers,
+                    ops_test.model_name,
+                )
+            except AssertionError:
+                failed_checks.append(f"{pod}/{container}")
+    assert failed_checks == []
+
+
+@pytest.mark.abort_on_fail
+async def test_remove_with_resources_present(ops_test: OpsTest):
+    """Test remove with all resources deployed.
+
+    Verify that all deployed resources that need to be removed are removed.
+
+    This test should be next after test_upgrade(), because it removes deployed charm.
+    """
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=15),
+        stop=tenacity.stop_after_delay(5 * 60),
+        reraise=True,
+    )
+    def assert_resources_removed():
+        """Asserts on the resource removal.
+
+        Retries multiple times using tenacity to allow time for the resources to be deleted.
+        """
+        lightkube_client = lightkube.Client()
+        crd_list = lightkube_client.list(
+            CustomResourceDefinition,
+            labels=[("app.juju.is/created-by", APP_NAME)],
+            namespace=ops_test.model_name,
+        )
+        # testing for empty list (iterator)
+        _last = object()
+        assert next(crd_list, _last) is _last
+
+    # remove deployed charm and verify that it is removed alongside resources it created
+    await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
+    assert APP_NAME not in ops_test.model.applications
+
+    assert_resources_removed()
+
+
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
+@pytest.mark.abort_on_fail
+async def test_upgrade(ops_test: OpsTest):
+    """Test upgrade.
+
+    Verify that all upgrade process succeeds.
+
+    There should be no charm with APP_NAME deployed (after test_remove_with_resources_present()),
+    because it deploys stable version of this charm and performs upgrade.
+    """
+
+    # deploy stable version of the charm
+    await ops_test.model.deploy(entity_url=APP_NAME, channel=APP_PREVIOUS_CHANNEL, trust=True)
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
+
+    # refresh (upgrade) using charm built in test_build_and_deploy()
+    # NOTE: using ops_test.juju() because there is no functionality to refresh in ops_test
+    await ops_test.juju(
+        "refresh",
+        APP_NAME,
+        f"--path={CHARM_LOCATION}",
+        "--trust",
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
+    )
+
+    # verify that all CRDs are installed
+    lightkube_client = lightkube.Client()
+    crd_list = lightkube_client.list(
+        CustomResourceDefinition,
+        labels=[("app.juju.is/created-by", APP_NAME)],
+        namespace=ops_test.model_name,
+    )
+    # testing for non empty list (iterator)
+    _last = object()
+    assert not next(crd_list, _last) is _last
+
+    # check that all CRDs are installed and versions are correct
+    test_crd_list = []
+    for crd in yaml.safe_load_all(
+        Path("./src/templates/trainer-crds_manifests.yaml.j2").read_text()
+    ):
+        test_crd_list.append(
+            (
+                crd["metadata"]["name"],
+                crd["metadata"]["annotations"]["controller-gen.kubebuilder.io/version"],
+            )
+        )
+    for crd in crd_list:
+        assert (
+            (crd.metadata.name, crd.metadata.annotations["controller-gen.kubebuilder.io/version"])
+        ) in test_crd_list
+
+    # verify that if ClusterRole is installed and parameters are correct
+    cluster_role = lightkube_client.get(
+        ClusterRole,
+        name=f"{ops_test.model_name}-{APP_NAME}-charm",
+        namespace=ops_test.model_name,
+    )
+    for rule in cluster_role.rules:
+        if rule.apiGroups == "kubeflow.org":
+            assert "paddlejobs" in rule.resources
+
+
+@pytest.mark.skip("Due to https://github.com/canonical/training-operator/issues/170")
+@pytest.mark.abort_on_fail
+async def test_remove_without_resources(ops_test: OpsTest):
+    """Test remove when no resources are present.
+
+    Verify that application is removed and not stuck in error state.
+
+    This test should be last in the test suite after test_upgrade(), because it removes deployed
+    charm.
+    """
+
+    # remove all CRDs
+    lightkube_client = lightkube.Client()
+    crd_list = lightkube_client.list(
+        CustomResourceDefinition,
+        labels=[("app.juju.is/created-by", APP_NAME)],
+        namespace=ops_test.model_name,
+    )
+    for crd in crd_list:
+        lightkube_client.delete(
+            CustomResourceDefinition,
+            name=crd.metadata.name,
+            namespace=ops_test.model_name,
+        )
+
+    # remove deployed charm and verify that it is removed successfully
+    await ops_test.model.remove_application(app_name=APP_NAME, block_until_done=True)
+    assert APP_NAME not in ops_test.model.applications

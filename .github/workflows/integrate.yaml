@@ -58,8 +58,9 @@ jobs:
     runs-on: ["self-hosted-linux-amd64-noble-xlarge"]
     strategy:
       matrix:
-        tox-environments:
+        tox-environment:
           - integration
+          - integration-ambient
           - integration-with-profiles
     steps:
       - name: Check out code
@@ -119,7 +120,7 @@ jobs:
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image pull "${FINAL_IMAGE}" > /dev/null 2>&1
             sudo /snap/k8s/current/bin/ctr --namespace k8s.io image label "${FINAL_IMAGE}" io.cri-containerd.pinned=pinned
           done
-        if: ${{ matrix.tox-environments == 'integration' }}
+        if: ${{ matrix.tox-environment == 'integration' || matrix.tox-environment == 'integration-ambient' }}
 
       - name: Fetch charm
         uses: actions/download-artifact@v5
@@ -131,9 +132,17 @@ jobs:
         id: charm-path
         run: echo "charm_path=$(find built/ -name '*.charm' -type f -print)" >> $GITHUB_OUTPUT
 
+      - name: Configure Cilium for Canonical K8s
+        if: matrix.tox-environment == 'integration-ambient'
+        run: |
+          # Configure Cilium for Canonical K8s to work with Charmed Istio (Ambient mode)
+          # See https://canonical-service-mesh-documentation.readthedocs-hosted.com/en/latest/how-to/use-charmed-istio-with-canonical-kubernetes/
+          kubectl -n kube-system patch configmap cilium-config --type merge --patch '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
+          kubectl -n kube-system rollout restart daemonset cilium
+
       - name: Run integration tests
         run: |
-          tox -e ${{ matrix.tox-environments }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
+          tox -e ${{ matrix.tox-environment }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
 
       - name: Capture k8s resources on failure
         run: |
