@@ -327,7 +327,8 @@ class TrainingOperatorCharm(CharmBase):
 
     def _remove_authorization_policies(self, _):
         """Remove authorization policies via PolicyResourceManager."""
-        self._policy_resource_manager.delete()
+        if self.unit.is_leader():
+            self._policy_resource_manager.delete()
 
     def _check_leader(self):
         """Check if this unit is a leader."""

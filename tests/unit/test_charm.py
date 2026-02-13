@@ -267,6 +267,7 @@ class TestCharm:
         k8s_resource_handler: MagicMock,
         harness: Harness,
     ):
+        harness.set_leader(True)
         harness.begin()
         harness.charm.on.remove.emit()
         trainjob_resource_handler.assert_has_calls([call.render_manifests()])
@@ -392,6 +393,7 @@ class TestCharm:
         _____: MagicMock,
         harness: Harness,
     ):
+        harness.set_leader(True)
         harness.begin()
         harness.charm.on.remove.emit()
 
