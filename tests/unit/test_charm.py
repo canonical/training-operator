@@ -256,12 +256,12 @@ class TestCharm:
     @patch("charm.ServiceMeshConsumer")
     def test_on_remove_success(
         self,
-        service_mesh_consumer_cls: MagicMock,
-        policy_resource_manager_cls: MagicMock,
-        policy_client: MagicMock,
-        delete_many: MagicMock,
         _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
         __: MagicMock,
+        delete_many: MagicMock,
+        ___: MagicMock,
+        ____: MagicMock,
         trainjob_resource_handler: MagicMock,
         crd_resource_handler: MagicMock,
         k8s_resource_handler: MagicMock,
@@ -286,14 +286,14 @@ class TestCharm:
     @patch("charm.ServiceMeshConsumer")
     def test_on_remove_failure(
         self,
-        service_mesh_consumer_cls: MagicMock,
-        _policy_resource_manager_cls: MagicMock,
-        _policy_client: MagicMock,
-        delete_many: MagicMock,
         _: MagicMock,
         __: MagicMock,
         ___: MagicMock,
+        delete_many: MagicMock,
         ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
+        _______: MagicMock,
         harness: Harness,
     ):
         delete_many.side_effect = _FakeApiError()
@@ -310,13 +310,13 @@ class TestCharm:
     @patch("charm.ServiceMeshConsumer")
     def test_reconcile_policy_resource_manager_with_mesh(
         self,
-        service_mesh_consumer_cls: MagicMock,
-        policy_resource_manager_cls: MagicMock,
-        policy_client: MagicMock,
         _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
         __: MagicMock,
         ___: MagicMock,
         ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
         harness: Harness,
     ):
         harness.set_leader(True)
@@ -352,11 +352,11 @@ class TestCharm:
         self,
         service_mesh_consumer_cls: MagicMock,
         policy_resource_manager_cls: MagicMock,
-        policy_client: MagicMock,
         _: MagicMock,
         __: MagicMock,
         ___: MagicMock,
         ____: MagicMock,
+        _____: MagicMock,
         harness: Harness,
     ):
         # Configure mock to simulate no mesh relation
@@ -382,15 +382,15 @@ class TestCharm:
     @patch("charm.ServiceMeshConsumer")
     def test_on_remove_calls_remove_authorization_policies(
         self,
-        service_mesh_consumer_cls: MagicMock,
-        policy_resource_manager_cls: MagicMock,
-        policy_client: MagicMock,
-        delete_many: MagicMock,
         _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
         __: MagicMock,
         ___: MagicMock,
         ____: MagicMock,
         _____: MagicMock,
+        ______: MagicMock,
+        _______: MagicMock,
+        ________: MagicMock,
         harness: Harness,
     ):
         harness.set_leader(True)
@@ -409,13 +409,13 @@ class TestCharm:
     @patch("charm.ServiceMeshConsumer")
     def test_service_mesh_relation_broken(
         self,
-        service_mesh_consumer_cls: MagicMock,
-        policy_resource_manager_cls: MagicMock,
-        policy_client: MagicMock,
         _: MagicMock,
+        policy_resource_manager_cls: MagicMock,
         __: MagicMock,
         ___: MagicMock,
         ____: MagicMock,
+        _____: MagicMock,
+        ______: MagicMock,
         harness: Harness,
     ):
         harness.set_leader(True)
