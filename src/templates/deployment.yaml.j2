@@ -3,8 +3,6 @@ kind: Deployment
 metadata:
   labels:
     control-plane: {{ namespace }}-{{ app_name }}
-    # label added to distinguish charm pod from workload pod
-    app.kubernetes.io/name: {{ app_name }}-manager
   name: {{ app_name }}
   namespace: {{ namespace }}
 spec:
@@ -12,16 +10,12 @@ spec:
   selector:
     matchLabels:
       control-plane: {{ namespace }}-{{ app_name }}
-      # label added to distinguish charm pod from workload pod
-      app.kubernetes.io/name: {{ app_name }}-manager
   template:
     metadata:
       annotations:
         sidecar.istio.io/inject: "false"
       labels:
         control-plane: {{ namespace }}-{{ app_name }}
-        # label added to distinguish charm pod from workload pod
-        app.kubernetes.io/name: {{ app_name }}-manager
     spec:
       containers:
       - command:
