@@ -43,6 +43,8 @@ jobs:
   # publish runs in parallel with tests, as we always publish in this situation
   publish-charm:
     name: Publish Charm
+    needs:
+      - build-charm
     uses: ./.github/workflows/publish.yaml
     secrets: inherit
 

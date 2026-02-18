@@ -89,12 +89,23 @@ jobs:
         with:
           channel: latest/stable
 
+      - name: Fetch charm
+        uses: actions/download-artifact@v5
+        with:
+          name: built-charm
+          path: built/
+
+      - name: Get charm path
+        id: charm-path
+        run: echo "charm_path=$(find built/ -name '*.charm' -type f -print)" >> $GITHUB_OUTPUT
+
       - name: Upload charm to charmhubpip-tools
         uses: canonical/charming-actions/upload-charm@2.6.2
         with:
           credentials: ${{ secrets.CHARMCRAFT_CREDENTIALS }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           charm-path: ${{ matrix.charm-path }}
+          built-charm-path: ${{ steps.charm-path.outputs.charm_path }}
           channel: ${{ steps.parse-inputs.outputs.destination_channel }}
           tag-prefix: ${{ steps.parse-inputs.outputs.tag_prefix }}
           charmcraft-channel: 3.x/stable
