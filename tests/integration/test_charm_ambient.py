@@ -57,14 +57,17 @@ def lightkube_client() -> Client:
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     """Build the charm and deploy it and deploy its dependencies.
 
     Assert on the unit status.
     """
-    charm_under_test = await ops_test.build_charm(".")
-
-    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
@@ -72,7 +75,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # store charm location in global to be used in other tests
     global CHARM_LOCATION
-    CHARM_LOCATION = charm_under_test
+    CHARM_LOCATION = entity_url
 
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
