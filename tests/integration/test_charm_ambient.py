@@ -3,6 +3,7 @@
 
 import glob
 import logging
+import subprocess
 from pathlib import Path
 
 import lightkube
@@ -56,14 +57,17 @@ def lightkube_client() -> Client:
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     """Build the charm and deploy it and deploy its dependencies.
 
     Assert on the unit status.
     """
-    charm_under_test = await ops_test.build_charm(".")
-
-    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60 * 10
     )
@@ -71,7 +75,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
 
     # store charm location in global to be used in other tests
     global CHARM_LOCATION
-    CHARM_LOCATION = charm_under_test
+    CHARM_LOCATION = entity_url
 
     # Deploy grafana-agent for COS integration tests
     await deploy_and_assert_grafana_agent(ops_test.model, APP_NAME, metrics=True)
@@ -99,7 +103,7 @@ async def ensure_training_operator_is_running(ops_test: OpsTest) -> None:
         "wait",
         "--for=condition=ready",
         "pod",
-        "-lapp.kubernetes.io/name=training-operator",
+        f"-l control-plane={ops_test.model_name}-{APP_NAME}",
         f"-n{ops_test.model_name}",
         "--timeout=10m",
         check=True,
@@ -234,6 +238,40 @@ async def test_metrics_endpoint(ops_test: OpsTest):
     await assert_metrics_endpoint(app, metrics_port=METRICS_PORT, metrics_path=METRICS_PATH)
 
 
+def get_deployment_pod_names(model: str, application_name: str) -> list[str]:
+    """Retrieve names of all pods belonging to a specific Juju application.
+
+    This function uses kubectl to query the Kubernetes cluster for pods that match
+    the given application name within the specified Juju model namespace. It filters
+    pods by the label "control-plane".
+
+    Args:
+        model (str): The name of the Juju model, which corresponds to the Kubernetes
+            namespace where the pods are deployed.
+        application_name (str): The name of the Juju application whose pods should
+            be retrieved. This matches the "control-plane" label.
+
+    Returns:
+        list[str]: A list of pod names matching the application. Returns an empty
+            list if no pods are found or if the kubectl command fails.
+    """
+    cmd = [
+        "kubectl",
+        "get",
+        "pods",
+        f"-n{model}",
+        f"-l control-plane={model}-{application_name}",
+        "--no-headers",
+        "-o=custom-columns=NAME:.metadata.name",
+    ]
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+    )
+    stdout = proc.stdout.decode("utf8")
+    return stdout.split()
+
+
 def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[str, dict]:
     """Build full map of pods:containers belonging to this charm.
 
@@ -242,7 +280,7 @@ def build_pod_container_map(model_name: str, deployment_template: dict) -> dict[
     `src/templates/deployment.yaml.j2`.
     """
     charm_pods: list = get_pod_names(model_name, APP_NAME)
-    deployment_pods: list = get_pod_names(model_name, f"{APP_NAME}-manager")
+    deployment_pods: list = get_deployment_pod_names(model_name, APP_NAME)
     deployment_container_name = deployment_template["spec"]["template"]["spec"]["containers"][0][
         "name"
     ]
@@ -301,7 +339,7 @@ async def test_remove_with_resources_present(ops_test: OpsTest):
     lightkube_client = lightkube.Client()
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", "training-operator")],
+        labels=[("app.juju.is/created-by", APP_NAME)],
         namespace=ops_test.model_name,
     )
     # testing for empty list (iterator)
@@ -342,7 +380,7 @@ async def test_upgrade(ops_test: OpsTest):
     lightkube_client = lightkube.Client()
     crd_list = lightkube_client.list(
         CustomResourceDefinition,
-        labels=[("app.juju.is/created-by", "training-operator")],
+        labels=[("app.juju.is/created-by", APP_NAME)],
         namespace=ops_test.model_name,
     )
     # testing for non empty list (iterator)

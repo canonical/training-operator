@@ -196,7 +196,7 @@ class TrainingOperatorCharm(CharmBase):
             spec=AuthorizationPolicySpec(
                 selector=WorkloadSelector(
                     # Use the unique label from src/templates/deployment.yaml.j2
-                    matchLabels={"app.kubernetes.io/name": f"{app_name}-manager"},
+                    matchLabels={"control-plane": f"{namespace}-{app_name}"},
                 ),
                 action=Action.allow,
                 rules=[Rule()],
