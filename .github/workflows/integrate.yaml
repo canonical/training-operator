@@ -97,7 +97,7 @@ jobs:
         run: echo "charm_path=$(find built/ -name '*.charm' -type f -print)" >> $GITHUB_OUTPUT
 
       - name: Run integration tests
-        run: tox -e ${{ matrix.tox-environment }}  -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
+        run: tox -e ${{ matrix.tox-environment }} -- --model testing --charm-path="${{ steps.charm-path.outputs.charm_path }}"
 
       - name: Capture k8s resources on failure
         run: |
@@ -116,11 +116,15 @@ jobs:
         if: failure()
 
       - name: Get secret
-        run: kubectl get secret -ntesting training-operator-webhook-cert -oyaml
+        run: kubectl get secret -n testing training-operator-webhook-cert -oyaml
         if: failure()
 
-      - name: Describe pod
-        run: kubectl describe pod -ntesting -lapp.kubernetes.io/name=training-operator
+      - name: Describe operator pod
+        run: kubectl describe pod -n testing -l app.kubernetes.io/name=training-operator
+        if: failure()
+
+      - name: Describe workload pod
+        run: kubectl describe pod -n testing -l control-plane=testing-training-operator
         if: failure()
 
       - name: Get pods
@@ -128,5 +132,9 @@ jobs:
         if: failure()
 
       - name: Get operator logs
-        run: kubectl logs --tail 100 -ntesting -lapp.kubernetes.io/name=training-operator -ctraining-operator
+        run: kubectl logs --tail 100 -n testing -l app.kubernetes.io/name=training-operator -c charm
+        if: failure()
+
+      - name: Get workload logs
+        run: kubectl logs --tail 100 -n testing -l control-plane=testing-training-operator -c training-operator
         if: failure()
