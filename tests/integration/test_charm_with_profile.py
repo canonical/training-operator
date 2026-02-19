@@ -43,11 +43,17 @@ log = logging.getLogger(__name__)
 
 
 @pytest.mark.abort_on_fail
-async def test_build_and_deploy(ops_test: OpsTest):
-    """Build the charm and deploy."""
-    charm_under_test = await ops_test.build_charm(".")
+async def test_build_and_deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
+    """Build the charm and deploy it with trust=True.
 
-    await ops_test.model.deploy(charm_under_test, application_name=APP_NAME, trust=True)
+    Assert on the unit status.
+    """
+    entity_url = (
+        await ops_test.build_charm(".")
+        if not (entity_url := request.config.getoption("--charm-path"))
+        else Path(entity_url).resolve()
+    )
+    await ops_test.model.deploy(entity_url, application_name=APP_NAME, trust=True)
 
     # Deploy kubeflow-roles and kubeflow-profiles to create a Profile
     await ops_test.model.deploy(
