@@ -37,6 +37,7 @@ spec:
                 metadata:
                   labels:
                     sidecar.istio.io/inject: 'false'
+                    istio.io/dataplane-mode: none
                 spec:
                   containers:
                     - name: node

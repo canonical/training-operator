@@ -22,6 +22,7 @@ spec:
               metadata:
                 labels:
                   sidecar.istio.io/inject: 'false'
+                  istio.io/dataplane-mode: none
               spec:
                 containers:
                 - image: pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
