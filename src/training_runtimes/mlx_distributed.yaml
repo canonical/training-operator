@@ -40,6 +40,8 @@ spec:
                 metadata:
                   labels:
                     sidecar.istio.io/inject: 'false'
+                    # Opt out of Istio ambient mesh to enable pod-to-pod communication for distributed training.
+                    istio.io/dataplane-mode: none
                 spec:
                   containers:
                     - name: node
