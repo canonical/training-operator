@@ -8,14 +8,23 @@ import logging
 from charmed_kubeflow_chisme.exceptions import ErrorWithStatus, GenericCharmRuntimeError
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
+from charmed_service_mesh_helpers.models import (
+    Action,
+    AuthorizationPolicySpec,
+    Rule,
+    WorkloadSelector,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.istio_beacon_k8s.v0.service_mesh import PolicyResourceManager, ServiceMeshConsumer
 from charms.kubeflow_dashboard.v0.kubeflow_dashboard_links import (
     DashboardLink,
     KubeflowDashboardLinksRequirer,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from lightkube import ApiError
-from lightkube.generic_resource import load_in_cluster_generic_resources
+from lightkube import ApiError, Client
+from lightkube.generic_resource import GenericNamespacedResource, load_in_cluster_generic_resources
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube_extensions.types import AuthorizationPolicy
 from ops import main
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
@@ -34,6 +43,9 @@ METRICS_PATH = "/metrics"
 METRICS_PORT = "8080"
 WEBHOOK_PORT = "443"
 WEBHOOK_TARGET_PORT = "9443"
+
+METRICS_ENDPOINT_RELATION_NAME = "metrics-endpoint"
+SERVICE_MESH_RELATION_NAME = "service-mesh"
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +78,16 @@ class TrainingOperatorCharm(CharmBase):
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
         self.framework.observe(self.on.config_changed, self._on_event)
         self.framework.observe(self.on.leader_elected, self._on_event)
+        self.framework.observe(
+            self.on[SERVICE_MESH_RELATION_NAME].relation_changed, self._on_event
+        )
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
+        # setup event to handle removing authorization policies on relation broken
+        self.framework.observe(
+            self.on[SERVICE_MESH_RELATION_NAME].relation_broken,
+            self._remove_authorization_policies,
+        )
 
         # Add documentation link to the dashboard
         self.kubeflow_dashboard_sidebar = KubeflowDashboardLinksRequirer(
@@ -87,7 +107,7 @@ class TrainingOperatorCharm(CharmBase):
         # format: app-name-workload.namespace.svc:metrics_port
         self.prometheus_provider = MetricsEndpointProvider(
             charm=self,
-            relation_name="metrics-endpoint",
+            relation_name=METRICS_ENDPOINT_RELATION_NAME,
             jobs=[
                 {
                     "metrics_path": METRICS_PATH,
@@ -100,6 +120,16 @@ class TrainingOperatorCharm(CharmBase):
                     ],
                 }
             ],
+        )
+
+        self._mesh = ServiceMeshConsumer(
+            self,
+        )
+
+        # Allow all policy needed to allow the K8s API to talk to the webhook
+        self._allow_all_policy = self.generate_allow_all_authorization_policy(
+            app_name=self.app.name,
+            namespace=self.model.name,
         )
 
     @property
@@ -135,6 +165,54 @@ class TrainingOperatorCharm(CharmBase):
     @crd_resource_handler.setter
     def crd_resource_handler(self, handler: KubernetesResourceHandler):
         self._crd_resource_handler = handler
+
+    @property
+    def _policy_resource_manager(self) -> PolicyResourceManager:
+        """Create and return PolicyResourceManager, used to manage authorization policies."""
+        return PolicyResourceManager(
+            charm=self,
+            lightkube_client=Client(field_manager=f"{self.app.name}-{self.model.name}"),
+            labels={
+                "app.kubernetes.io/instance": f"{self.app.name}-{self.model.name}",
+                "kubernetes-resource-handler-scope": f"{self.app.name}-allow-all",
+            },
+            logger=self.logger,
+        )
+
+    def generate_allow_all_authorization_policy(
+        self, app_name: str, namespace: str
+    ) -> GenericNamespacedResource:
+        """Return AuthorizationPolicy that allows any workload to talk to the workload deployment.
+
+        Args:
+            app_name: name of the app to allow traffic to
+            namespace: namespace of the app to allow traffic to
+        """
+        return AuthorizationPolicy(
+            metadata=ObjectMeta(
+                name=f"{app_name}-allow-all",
+                namespace=namespace,
+            ),
+            spec=AuthorizationPolicySpec(
+                selector=WorkloadSelector(
+                    # Use the unique label from src/templates/deployment.yaml.j2
+                    matchLabels={"app.kubernetes.io/name": f"{app_name}-manager"},
+                ),
+                action=Action.allow,
+                rules=[Rule()],
+            ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+        )
+
+    def _reconcile_policy_resource_manager(self):
+        """Reconcile authorization policies via PolicyResourceManager."""
+        if self._mesh._relation:
+            self._policy_resource_manager.reconcile(
+                policies=[], mesh_type=self._mesh.mesh_type, raw_policies=[self._allow_all_policy]
+            )
+
+    def _remove_authorization_policies(self, _):
+        """Remove authorization policies via PolicyResourceManager."""
+        self._policy_resource_manager.delete()
 
     def _check_leader(self):
         """Check if this unit is a leader."""
@@ -198,6 +276,7 @@ class TrainingOperatorCharm(CharmBase):
         try:
             self._check_leader()
             self._apply_k8s_resources(force_conflicts=force_conflicts)
+            self._reconcile_policy_resource_manager()
         except ErrorWithStatus as error:
             self.model.unit.status = error.status
             return
@@ -225,6 +304,7 @@ class TrainingOperatorCharm(CharmBase):
         self.unit.status = MaintenanceStatus("Removing K8S resources")
         k8s_resources_manifests = self.k8s_resource_handler.render_manifests()
         crd_resources_manifests = self.crd_resource_handler.render_manifests()
+        self._remove_authorization_policies(_)
         try:
             delete_many(self.crd_resource_handler.lightkube_client, crd_resources_manifests)
             delete_many(self.k8s_resource_handler.lightkube_client, k8s_resources_manifests)
