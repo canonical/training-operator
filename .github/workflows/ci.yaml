@@ -3,30 +3,37 @@ name: CI
 
 on:
   workflow_call:
-    secrets:
-      CHARMCRAFT_CREDENTIALS:
-        required: true
+  pull_request:
+  push:
+    branches:
+      - main
+      - track/**
 
 jobs:
+  get-charm-paths-track:
+    name: Get charm paths / track
+    uses: canonical/data-platform-workflows/.github/workflows/get_charm_paths_and_track.yaml@v49.0.1
+
   lint:
     name: Lint
     runs-on: ubuntu-24.04
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: pipx install tox
+      - name: Install dependencies
+        run: pipx install tox
 
-    - name: Lint code
-      run: tox -vve lint
+      - name: Lint code
+        run: tox -vve lint
 
-  unit-test:
+  unit:
     name: Unit
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+
       - name: Install dependencies
         run: pipx install tox
 
@@ -46,10 +53,41 @@ jobs:
     with:
       charm-path: .
 
-  integration-test:
+  build:
+    name: Build charm
+    needs:
+      - get-charm-paths-track
+    uses: canonical/data-platform-workflows/.github/workflows/build_charm.yaml@v49.0.1
+    with:
+      cache: true
+      path-to-charm-directory: ${{ needs.get-charm-paths-track.outputs.path }}
+      charmcraft-snap-channel: 3.x/stable
+
+  release:
+    name: Release to CharmHub
+    needs:
+      - build
+      - lint
+      - unit
+      - terraform-checks
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    uses: canonical/data-platform-workflows/.github/workflows/release_charm_pr.yaml@v49.0.1
+    with:
+      artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
+      path-to-charm-directory: .
+      track: ${{ needs.get-charm-paths-track.outputs.track }}
+    secrets: inherit
+    permissions:
+      contents: write
+      pull-requests: write
+
+  integration:
     name: Integration
+    needs:
+      - build
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         tox-environment:
           - integration
@@ -61,6 +99,7 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v4
+
       - name: Install dependencies
         run: pipx install tox
 
@@ -78,11 +117,12 @@ jobs:
           # See https://canonical-service-mesh-documentation.readthedocs-hosted.com/en/latest/how-to/use-charmed-istio-with-canonical-kubernetes/
           kubectl -n kube-system patch configmap cilium-config --type merge --patch '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
           kubectl -n kube-system rollout restart daemonset cilium
-  
+
       - name: Fetch charm
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
-          name: built-charm
+          pattern: ${{ needs.build.outputs.artifact-prefix }}-*
+          merge-multiple: true
           path: built/
 
       - name: Get charm path

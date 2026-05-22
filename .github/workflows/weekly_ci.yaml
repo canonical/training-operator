@@ -7,6 +7,5 @@ on:
 jobs:
   tests:
     name: Run Tests
-    uses: ./.github/workflows/integrate.yaml
-    secrets:
-      charmcraft-credentials: '${{ secrets.CHARMCRAFT_CREDENTIALS }}'
+    uses: ./.github/workflows/ci.yaml
+    secrets: inherit
