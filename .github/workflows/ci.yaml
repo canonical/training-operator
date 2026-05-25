@@ -92,6 +92,9 @@ jobs:
       cache: true
       path-to-charm-directory: ${{ needs.get-charm-paths-track.outputs.path }}
       charmcraft-snap-channel: 3.x/stable
+    permissions:
+      actions: read
+      contents: read
 
   release:
     name: Release to CharmHub
