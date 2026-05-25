@@ -11,8 +11,38 @@ on:
 
 jobs:
   get-charm-paths-track:
-    name: Get charm paths / track
-    uses: canonical/data-platform-workflows/.github/workflows/get_charm_paths_and_track.yaml@v49.0.1
+    name: Get charm paths and track
+    runs-on: ubuntu-latest
+    outputs:
+      path: ${{ steps.get-charm-paths.outputs.charm-paths }}
+      track: ${{ steps.determine-track.outputs.track }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get paths for all charms in this repo
+        id: get-charm-paths
+        uses: canonical/kubeflow-ci/actions/get-charm-paths@main
+      - name: Determine track
+        id: determine-track
+        shell: python
+        run: |
+          import os
+
+          if "${{ github.event_name }}" == "pull_request":
+              ref = "${{ github.base_ref }}"
+          else:
+              ref = "${{ github.ref_name }}"
+
+          if ref.startswith("track/"):
+              track = ref.removeprefix("track/")
+          else:
+              track = "latest"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"track={track}\n")
+
+          print(f"Track: {track}")
 
   lint:
     name: Lint
@@ -66,6 +96,7 @@ jobs:
   release:
     name: Release to CharmHub
     needs:
+      - get-charm-paths-track
       - build
       - lint
       - unit
