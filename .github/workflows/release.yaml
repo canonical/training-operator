@@ -18,6 +18,7 @@ jobs:
     uses: canonical/data-platform-workflows/.github/workflows/release_charm_edge.yaml@v49.0.1
     with:
       artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
+      track: latest
       path-to-charm-directory: .
     secrets:
       charmhub-token: ${{ secrets.CHARMCRAFT_CREDENTIALS }}
