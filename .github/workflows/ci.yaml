@@ -193,7 +193,7 @@ jobs:
 
       - name: Get juju status
         run: juju status
-        if: failure()
+        if: always()
 
       - name: Get validatingwebhookconfigurations
         run: kubectl get validatingwebhookconfigurations validator.training-operator.kubeflow.org -oyaml
