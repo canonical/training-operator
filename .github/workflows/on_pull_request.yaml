@@ -1,13 +1,13 @@
 name: On Pull Request
 
 # On pull_request, we:
-# * always publish to charmhub at latest/edge/branchname
-# * always run tests
+# * create backport labels if it is against main, only when the PR is opened/reopened
 
 on:
   pull_request:
 
 jobs:
+<<<<<<< HEAD
   build-charm:
     name: Build charm
     runs-on: ubuntu-24.04
@@ -48,3 +48,14 @@ jobs:
     uses: ./.github/workflows/publish.yaml
     secrets: inherit
 
+=======
+
+  populate-labels:
+    name: Populate labels
+    if: github.base_ref == 'main' && (github.event.action == 'opened' || github.event.action == 'reopened')
+    uses: canonical/charmed-kubeflow-workflows/.github/workflows/populate-labels.yaml@main
+    secrets: inherit
+    with:
+      track_file_path: ".github/automatic_backport_tracks.yaml"
+      label_prefix: "backport "
+>>>>>>> f98583d (chore: Update CI to use charmcraftcache (#305))
